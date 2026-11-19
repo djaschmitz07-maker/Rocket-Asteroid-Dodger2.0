@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rocket Asteroid Dodger</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #070913;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* HUD & Overlays */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            backdrop-filter: blur(6px);
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        #pauseBtn {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(99, 102, 241, 0.45);
+            backdrop-filter: blur(6px);
+            color: #f8fafc;
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+
+        #pauseBtn:hover {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: #38bdf8;
+            transform: scale(1.05);
+        }
+
+        #pauseBtn:active {
+            transform: scale(0.95);
+        }
+
+        /* Top-Left Red Back Arrow Button on Main Menu */
+        #backMenuBtn {
+            position: absolute;
+            top: 22px;
+            left: 22px;
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: rgba(127, 29, 29, 0.45);
+            border: 1.5px solid rgba(239, 68, 68, 0.7);
+            backdrop-filter: blur(6px);
+            color: #ef4444;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-decoration: none;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+            z-index: 30;
+        }
+
+        #backMenuBtn:hover {
+            background: rgba(239, 68, 68, 0.25);
+            color: #f87171;
+            transform: translateX(-2px) scale(1.06);
+            box-shadow: 0 6px 22px rgba(239, 68, 68, 0.55);
+        }
+
+        #backMenuBtn:active {
+            transform: scale(0.95);
+        }
+
+        /* Pause & Countdown Overlays */
+        #pauseOverlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 8, 17, 0.78);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 24px;
+            z-index: 25;
+            transition: opacity 0.25s ease;
+        }
+
+        #pauseOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .pause-title {
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 900;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #f8fafc;
+            margin-bottom: 24px;
+            text-shadow: 0 4px 18px rgba(56, 189, 248, 0.4);
+        }
+
+        #countdownOverlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 22;
+        }
+
+        #countdownOverlay.hidden {
+            display: none;
+        }
+
+        #countdownText {
+            font-size: clamp(4.5rem, 12vw, 7.5rem);
+            font-weight: 900;
+            color: #38bdf8;
+            text-shadow: 0 0 30px rgba(56, 189, 248, 0.8), 0 6px 20px rgba(0, 0, 0, 0.7);
+            animation: popScale 0.85s ease-out infinite;
+        }
+
+        @keyframes popScale {
+            0% { transform: scale(0.65); opacity: 0.4; }
+            30% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.85; }
+        }
+
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.75) 0%, rgba(5, 8, 17, 0.92) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 24px;
+            z-index: 20;
+            transition: opacity 0.3s ease;
+        }
+
+        #overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-badge {
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #38bdf8;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            padding: 6px 16px;
+            border-radius: 999px;
+            margin-bottom: 14px;
+        }
+
+        h1 {
+            font-size: clamp(2.4rem, 6.5vw, 4.2rem);
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #38bdf8, #818cf8, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 14px;
+            filter: drop-shadow(0 4px 12px rgba(56, 189, 248, 0.3));
+        }
+
+        .instructions {
+            max-width: 440px;
+            color: #cbd5e1;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 22px;
+        }
+
+        .highlight {
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            border: none;
+            padding: 16px 42px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5), inset 0 2px 2px rgba(255, 255, 255, 0.3);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            text-transform: uppercase;
+        }
+
+        .action-btn.play-hero {
+            padding: 20px 64px;
+            font-size: 1.55rem;
+            letter-spacing: 2.5px;
+            background: linear-gradient(135deg, #2563eb, #4f46e5, #7c3aed);
+            box-shadow: 0 12px 32px rgba(79, 70, 229, 0.65), inset 0 2px 3px rgba(255, 255, 255, 0.35);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 14px 34px rgba(99, 102, 241, 0.75), inset 0 2px 2px rgba(255, 255, 255, 0.4);
+        }
+
+        .action-btn:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        /* Cosmetics Button underneath Play */
+        #cosmeticsBtn {
+            margin-top: 18px;
+            background: rgba(15, 23, 42, 0.78);
+            color: #e2e8f0;
+            border: 1.5px solid rgba(56, 189, 248, 0.45);
+            padding: 11px 30px;
+            font-size: 0.98rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            border-radius: 999px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+
+        #cosmeticsBtn:hover {
+            background: rgba(30, 41, 59, 0.95);
+            border-color: #38bdf8;
+            color: #ffffff;
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        #cosmeticsBtn:active {
+            transform: scale(0.97);
+        }
+
+        #finalScoreBox {
+            display: none;
+            margin-bottom: 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            padding: 14px 30px;
+            border-radius: 16px;
+        }
+
+        #finalScoreVal {
+            font-size: 2.4rem;
+            font-weight: 900;
+            color: #fbbf24;
+        }
+
+        /* Subtle visual guide for left/right touch zones */
+        .zone-hint {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .zone-pill {
+            border: 1px dashed rgba(148, 163, 184, 0.4);
+            padding: 8px 16px;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        /* Cosmetics Drawer / Modal Overlay */
+        #cosmeticsOverlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.86) 0%, rgba(5, 8, 17, 0.96) 100%);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            z-index: 35;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.28s ease;
+        }
+
+        #cosmeticsOverlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .cosmetics-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .cosmetics-title {
+            font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #38bdf8, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cosmetics-sub {
+            color: #94a3b8;
+            font-size: 0.92rem;
+            margin-top: 4px;
+        }
+
+        /* 3 Animated Category Buttons: Boost, Obstacles, Rocket */
+        .category-row {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        .cat-btn {
+            background: rgba(30, 41, 59, 0.85);
+            color: #cbd5e1;
+            border: 1.5px solid rgba(148, 163, 184, 0.3);
+            padding: 13px 26px;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+            opacity: 0;
+            transform: translateY(22px) scale(0.92);
+            transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+                        opacity 0.32s ease,
+                        background 0.2s ease,
+                        border-color 0.2s ease,
+                        color 0.2s ease,
+                        box-shadow 0.2s ease;
+        }
+
+        #cosmeticsOverlay.active .cat-btn:nth-child(1) {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            transition-delay: 0.05s;
+        }
+
+        #cosmeticsOverlay.active .cat-btn:nth-child(2) {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            transition-delay: 0.13s;
+        }
+
+        #cosmeticsOverlay.active .cat-btn:nth-child(3) {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            transition-delay: 0.21s;
+        }
+
+        .cat-btn:hover {
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+
+        .cat-btn.selected {
+            background: linear-gradient(135deg, #2563eb, #6366f1);
+            border-color: #7dd3fc;
+            color: #ffffff;
+            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.4);
+        }
+
+        /* Panel Container for Selected Category */
+        .cosmetics-panel {
+            width: 100%;
+            max-width: 680px;
+            max-height: 52vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+            touch-action: pan-y;
+        }
+
+        .cosmetics-panel * {
+            touch-action: pan-y;
+        }
+
+        /* Custom subtle scrollbar */
+        .cosmetics-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        .cosmetics-panel::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.5);
+            border-radius: 999px;
+        }
+
+        .skins-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+            gap: 12px;
+        }
+
+        .skin-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1.5px solid rgba(148, 163, 184, 0.25);
+            border-radius: 16px;
+            padding: 12px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+        }
+
+        .skin-card:hover:not(.locked) {
+            transform: translateY(-2px);
+            border-color: #38bdf8;
+            background: rgba(30, 41, 59, 0.95);
+        }
+
+        .skin-card.equipped {
+            border-color: #38bdf8;
+            background: rgba(37, 99, 235, 0.25);
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+        }
+
+        .skin-card.locked {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .skin-swatch {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            margin-bottom: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .skin-name {
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }
+
+        .skin-status {
+            font-size: 0.74rem;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-equipped {
+            background: rgba(56, 189, 248, 0.25);
+            color: #7dd3fc;
+        }
+
+        .status-unlocked {
+            background: rgba(34, 197, 94, 0.2);
+            color: #86efac;
+        }
+
+        .status-locked {
+            background: rgba(100, 116, 139, 0.25);
+            color: #94a3b8;
+        }
+
+        .coming-soon-box {
+            padding: 36px 20px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        .coming-soon-box h3 {
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-bottom: 6px;
+        }
+
+        #closeCosmeticsBtn {
+            margin-top: 20px;
+            background: rgba(30, 41, 59, 0.85);
+            color: #f8fafc;
+            border: 1.5px solid rgba(148, 163, 184, 0.4);
+            padding: 11px 34px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+
+        #closeCosmeticsBtn:hover {
+            border-color: #38bdf8;
+            transform: scale(1.04);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="stat-box" id="scoreBox" style="visibility: hidden;">
+            <span class="stat-label">Score</span>
+            <span id="scoreDisplay">0</span>
+        </div>
+        <div class="hud-right">
+            <div class="stat-box">
+                <span class="stat-label">Best</span>
+                <span id="bestDisplay">0</span>
+            </div>
+            <button id="pauseBtn" aria-label="Pause Game" title="Pause">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1.5"></rect>
+                    <rect x="14" y="4" width="4" height="16" rx="1.5"></rect>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="pauseOverlay" class="hidden">
+        <div class="pause-title">Paused</div>
+        <button class="action-btn" id="resumeBtn">Resume</button>
+    </div>
+
+    <div id="countdownOverlay" class="hidden">
+        <div id="countdownText">3</div>
+    </div>
+
+    <div id="overlay">
+        <a id="backMenuBtn" href="https://djaschmitz07-maker.github.io/TDGames/" title="Back to TD Games" aria-label="Back to TD Games">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        </a>
+
+        <div class="menu-badge" id="menuBadge">TD Gaming Arcade</div>
+        <h1 id="overlayTitle">Astro Dodge</h1>
+        <div id="finalScoreBox">
+            <span class="stat-label">Final Score</span>
+            <div id="finalScoreVal">0</div>
+        </div>
+        <p class="instructions" id="overlayDesc">
+            Hold the <span class="highlight">LEFT</span> side of the screen to bank left.<br>
+            Hold the <span class="highlight">RIGHT</span> side of the screen to bank right.<br>
+            Release to straighten out and fly straight up!
+        </p>
+        <div class="zone-hint">
+            <div class="zone-pill">◀ Hold Left Half</div>
+            <div class="zone-pill">Hold Right Half ▶</div>
+        </div>
+        <button class="action-btn play-hero" id="startBtn">Play</button>
+        <button id="cosmeticsBtn">Cosmetics</button>
+    </div>
+
+    <!-- Cosmetics Modal -->
+    <div id="cosmeticsOverlay">
+        <div class="cosmetics-header">
+            <div class="cosmetics-title">Cosmetics</div>
+            <div class="cosmetics-sub" id="cosmeticsBestInfo">Best Score: 0 — Beat high scores to unlock new skins!</div>
+        </div>
+
+        <div class="category-row">
+            <button class="cat-btn" data-cat="boost">Boost</button>
+            <button class="cat-btn" data-cat="obstacles">Obstacles</button>
+            <button class="cat-btn selected" data-cat="rocket">Rocket</button>
+        </div>
+
+        <div class="cosmetics-panel" id="cosmeticsPanel"></div>
+
+        <button id="closeCosmeticsBtn">Back</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const scoreBox = document.getElementById('scoreBox');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const bestDisplay = document.getElementById('bestDisplay');
+        const overlay = document.getElementById('overlay');
+        const backMenuBtn = document.getElementById('backMenuBtn');
+        const menuBadge = document.getElementById('menuBadge');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayDesc = document.getElementById('overlayDesc');
+        const finalScoreBox = document.getElementById('finalScoreBox');
+        const finalScoreVal = document.getElementById('finalScoreVal');
+        const startBtn = document.getElementById('startBtn');
+        const cosmeticsBtn = document.getElementById('cosmeticsBtn');
+        const cosmeticsOverlay = document.getElementById('cosmeticsOverlay');
+        const cosmeticsBestInfo = document.getElementById('cosmeticsBestInfo');
+        const cosmeticsPanel = document.getElementById('cosmeticsPanel');
+        const closeCosmeticsBtn = document.getElementById('closeCosmeticsBtn');
+        const catButtons = document.querySelectorAll('.cat-btn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const countdownOverlay = document.getElementById('countdownOverlay');
+        const countdownText = document.getElementById('countdownText');
+
+        // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        let gameState = 'START';
+        let score = 0;
+        let bestScore = parseInt(localStorage.getItem('rocketDodgeBest') || '0', 10);
+        bestDisplay.textContent = bestScore;
+
+        // Rocket Hull Skins Definition
+        // fullBody: true changes fuselage, nose tip, fins, and rear stripe (leaving only the glass cockpit window untouched)
+        const ROCKET_SKINS = [
+            {
+                id: 'classic',
+                name: 'Classic White',
+                reqScore: 0,
+                reqLabel: 'Default',
+                stops: ['#cbd5e1', '#ffffff', '#e2e8f0', '#94a3b8']
+            },
+            {
+                id: 'blue',
+                name: 'Blue Rocket',
+                reqScore: 10,
+                reqLabel: 'Score 10+',
+                stops: ['#1d4ed8', '#60a5fa', '#3b82f6', '#1e3a8a']
+            },
+            {
+                id: 'red',
+                name: 'Red Rocket',
+                reqScore: 21,
+                reqLabel: 'Past 20',
+                stops: ['#b91c1c', '#f87171', '#ef4444', '#7f1d1d']
+            },
+            {
+                id: 'pink',
+                name: 'Pink Rocket',
+                reqScore: 31,
+                reqLabel: 'Past 30',
+                stops: ['#db2777', '#f9a8d4', '#f472b6', '#9d174d']
+            },
+            {
+                id: 'green',
+                name: 'Green Rocket',
+                reqScore: 41,
+                reqLabel: 'Past 40',
+                stops: ['#15803d', '#4ade80', '#22c55e', '#14532d']
+            },
+            {
+                id: 'copper',
+                name: 'Copper Rocket',
+                reqScore: 51,
+                reqLabel: 'Past 50',
+                fullBody: true,
+                stops: ['#7c3f1d', '#eab08a', '#c87544', '#5c2b10'],
+                finColor: '#b4532a',
+                centerFinColor: '#9a3412',
+                tipColor: '#d97742',
+                stripeColor: '#8c441e',
+                nozzleColor: '#6b3416'
+            },
+            {
+                id: 'yellow',
+                name: 'Yellow Rocket',
+                reqScore: 61,
+                reqLabel: 'Past 60',
+                stops: ['#ca8a04', '#fef08a', '#facc15', '#854d0e']
+            },
+            {
+                id: 'purple',
+                name: 'Purple Rocket',
+                reqScore: 71,
+                reqLabel: 'Past 70',
+                stops: ['#6b21a8', '#c084fc', '#9333ea', '#4c1d95']
+            },
+            {
+                id: 'teal',
+                name: 'Teal Rocket',
+                reqScore: 81,
+                reqLabel: 'Past 80',
+                stops: ['#0f766e', '#5eead4', '#14b8a6', '#115e59']
+            },
+            {
+                id: 'light_purple',
+                name: 'Light Purple',
+                reqScore: 91,
+                reqLabel: 'Past 90',
+                stops: ['#8b5cf6', '#ede9fe', '#c4b5fd', '#6d28d9']
+            },
+            {
+                id: 'black',
+                name: 'Black Rocket',
+                reqScore: 101,
+                reqLabel: 'Past 100',
+                stops: ['#09090b', '#3f3f46', '#18181b', '#000000']
+            },
+            {
+                id: 'pink_purple_blend',
+                name: 'Nebula Blend',
+                reqScore: 131,
+                reqLabel: 'Past 130',
+                blendPattern: true,
+                stops: ['#9333ea', '#f472b6', '#c084fc', '#db2777']
+            },
+            {
+                id: 'dark_gray',
+                name: 'Dark Gray',
+                reqScore: 150,
+                reqLabel: 'Score 150+',
+                stops: ['#374151', '#6b7280', '#4b5563', '#1f2937']
+            },
+            {
+                id: 'full_black',
+                name: 'Obsidian Stealth',
+                reqScore: 181,
+                reqLabel: 'Past 180',
+                fullBody: true,
+                stops: ['#050507', '#27272a', '#121215', '#000000'],
+                finColor: '#18181b',
+                centerFinColor: '#09090b',
+                tipColor: '#1f1f23',
+                stripeColor: '#27272a',
+                nozzleColor: '#09090b'
+            },
+            {
+                id: 'shiny_gold',
+                name: 'Shiny Gold',
+                reqScore: 200,
+                reqLabel: 'Score 200+',
+                fullBody: true,
+                shinyGold: true,
+                stops: ['#92400e', '#fef08a', '#f59e0b', '#78350f'],
+                finColor: '#d97706',
+                centerFinColor: '#b45309',
+                tipColor: '#fbbf24',
+                stripeColor: '#fde047',
+                nozzleColor: '#92400e'
+            }
+        ];
+
+        // Pre-generated random organic shapes for the Pink & Purple blended hull texture
+        const BLEND_PATCHES = [
+            { x: -0.18, y: -0.22, rx: 0.24, ry: 0.16, rot: 0.4, color: 'rgba(244, 114, 182, 0.85)' },
+            { x: 0.16,  y: -0.14, rx: 0.22, ry: 0.18, rot: -0.5, color: 'rgba(147, 51, 234, 0.85)' },
+            { x: -0.12, y: 0.06,  rx: 0.26, ry: 0.17, rot: -0.25, color: 'rgba(168, 85, 247, 0.82)' },
+            { x: 0.18,  y: 0.14,  rx: 0.23, ry: 0.15, rot: 0.65, color: 'rgba(236, 72, 153, 0.85)' },
+            { x: 0.0,   y: -0.02, rx: 0.28, ry: 0.20, rot: 0.15, color: 'rgba(217, 70, 239, 0.72)' },
+            { x: -0.20, y: 0.22,  rx: 0.20, ry: 0.14, rot: 0.5, color: 'rgba(249, 168, 212, 0.75)' },
+            { x: 0.12,  y: 0.26,  rx: 0.22, ry: 0.13, rot: -0.4, color: 'rgba(126, 34, 206, 0.85)' }
+        ];
+
+        let equippedRocketSkinId = localStorage.getItem('rocketDodgeEquippedSkin') || 'classic';
+        let activeCosmeticTab = 'rocket';
+
+        function getEquippedRocketSkin() {
+            const found = ROCKET_SKINS.find(s => s.id === equippedRocketSkinId);
+            if (found && bestScore >= found.reqScore) return found;
+            return ROCKET_SKINS[0];
+        }
+
+        // Render Cosmetics Tab Content
+        function renderCosmeticsPanel() {
+            cosmeticsBestInfo.textContent = `Best Score: ${bestScore} — Beat high scores to unlock new skins!`;
+
+            if (activeCosmeticTab === 'rocket') {
+                const currentSkin = getEquippedRocketSkin();
+                let html = '<div class="skins-grid">';
+                ROCKET_SKINS.forEach(skin => {
+                    const unlocked = bestScore >= skin.reqScore;
+                    const equipped = currentSkin.id === skin.id;
+                    const cardClass = `skin-card ${equipped ? 'equipped' : ''} ${!unlocked ? 'locked' : ''}`;
+                    const statusClass = equipped ? 'status-equipped' : (unlocked ? 'status-unlocked' : 'status-locked');
+                    const statusText = equipped ? 'Equipped' : (unlocked ? 'Unlocked' : `Unlock: ${skin.reqLabel}`);
+
+                    let swatchBg = `linear-gradient(135deg, ${skin.stops[1]}, ${skin.stops[2]}, ${skin.stops[0]})`;
+                    if (skin.blendPattern) {
+                        swatchBg = 'radial-gradient(circle at 30% 30%, #f9a8d4, #ec4899 45%, #7e22ce 90%)';
+                    } else if (skin.shinyGold) {
+                        swatchBg = 'linear-gradient(135deg, #fef9c3 0%, #facc15 35%, #d97706 70%, #fef08a 100%)';
+                    }
+
+                    html += `
+                        <div class="${cardClass}" data-skin-id="${skin.id}">
+                            <div class="skin-swatch" style="background: ${swatchBg};">
+                                ${!unlocked ? '🔒' : ''}
+                            </div>
+                            <div class="skin-name">${skin.name}</div>
+                            <div class="skin-status ${statusClass}">${statusText}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                cosmeticsPanel.innerHTML = html;
+
+                // Bind click handlers for unlocked skins
+                cosmeticsPanel.querySelectorAll('.skin-card:not(.locked)').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const id = card.getAttribute('data-skin-id');
+                        equippedRocketSkinId = id;
+                        localStorage.setItem('rocketDodgeEquippedSkin', id);
+                        renderCosmeticsPanel();
+                    });
+                });
+            } else if (activeCosmeticTab === 'boost') {
+                cosmeticsPanel.innerHTML = `
+                    <div class="coming-soon-box">
+                        <h3>Boost Trails</h3>
+                        <p>Custom thruster flames & exhaust trails coming soon!</p>
+                    </div>
+                `;
+            } else if (activeCosmeticTab === 'obstacles') {
+                cosmeticsPanel.innerHTML = `
+                    <div class="coming-soon-box">
+                        <h3>Obstacle Themes</h3>
+                        <p>Custom asteroid & space hazard styles coming soon!</p>
+                    </div>
+                `;
+            }
+        }
+
+        cosmeticsBtn.addEventListener('click', () => {
+            activeCosmeticTab = 'rocket';
+            catButtons.forEach(btn => {
+                btn.classList.toggle('selected', btn.getAttribute('data-cat') === activeCosmeticTab);
+            });
+            renderCosmeticsPanel();
+            cosmeticsOverlay.classList.add('active');
+        });
+
+        closeCosmeticsBtn.addEventListener('click', () => {
+            cosmeticsOverlay.classList.remove('active');
+        });
+
+        catButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                activeCosmeticTab = btn.getAttribute('data-cat');
+                catButtons.forEach(b => b.classList.toggle('selected', b === btn));
+                renderCosmeticsPanel();
+            });
+        });
+
+        // Countdown State
+        let countdownTimer = 0;
+        let lastCountdownInt = 3;
+
+        // Input State (-1 = left, 0 = none/straight, 1 = right)
+        let inputDir = 0;
+        let activeTouches = new Map();
+
+        // Visual feedback ripples when clicking left/right sides
+        let touchIndicators = [];
+
+        // Entities
+        let stars = [];
+        let asteroids = [];
+        let particles = [];
+        let screenShake = 0;
+
+        // Rocket Object
+        const rocket = {
+            x: width / 2,
+            y: height - 120,
+            width: 38,
+            height: 68,
+            vx: 0,
+            maxSpeed: 460,
+            accel: 2200,
+            friction: 1500,
+            angle: 0,           // Current visual tilt in radians
+            targetAngle: 0,     // Desired tilt based on input
+            angleVel: 0,        // Smooth angular velocity for fluid banking
+            maxTilt: 0.46,      // ~26 degrees tilt
+            flameFlicker: 0
+        };
+
+        // Stationary / Camping Detection State
+        let idleTime = 0;
+        let lastCheckedX = rocket.x;
+        let sniperWarningTimer = 0;
+
+        // Resize Handler
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            rocket.y = height - Math.max(100, height * 0.15);
+            if (rocket.x > width - 30) rocket.x = width - 30;
+            if (rocket.x < 30) rocket.x = 30;
+        }
+        window.addEventListener('resize', resize);
+
+        // Initialize Starfield Background
+        function initStars() {
+            stars = [];
+            const count = Math.floor((width * height) / 7000);
+            for (let i = 0; i < count; i++) {
+                stars.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    size: Math.random() * 2 + 0.6,
+                    speed: Math.random() * 140 + 60,
+                    alpha: Math.random() * 0.7 + 0.3
+                });
+            }
+        }
+
+        // Spawn Visual Click Ripple
+        function addTouchIndicator(x, y, dir) {
+            touchIndicators.push({
+                x,
+                y,
+                dir,
+                radius: 10,
+                maxRadius: 65,
+                alpha: 0.6
+            });
+        }
+
+        // Pause & Resume Logic
+        function pauseGame() {
+            if (gameState !== 'PLAYING') return;
+            gameState = 'PAUSED';
+            inputDir = 0;
+            activeTouches.clear();
+            pauseBtn.style.display = 'none';
+            pauseOverlay.classList.remove('hidden');
+        }
+
+        function startResumeCountdown() {
+            if (gameState !== 'PAUSED') return;
+            pauseOverlay.classList.add('hidden');
+            countdownOverlay.classList.remove('hidden');
+            gameState = 'COUNTDOWN';
+            countdownTimer = 3.0;
+            lastCountdownInt = 3;
+            countdownText.textContent = '3';
+        }
+
+        pauseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pauseGame();
+        });
+
+        resumeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startResumeCountdown();
+        });
+
+        // Input Handling (Mouse & Touch anywhere on Left/Right screen halves)
+        function updateInputFromClientX(clientX, clientY, isNewPress = false) {
+            if (gameState !== 'PLAYING') return;
+            if (clientX < width / 2) {
+                inputDir = -1;
+            } else {
+                inputDir = 1;
+            }
+            if (isNewPress) {
+                addTouchIndicator(clientX, clientY, inputDir);
+            }
+        }
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            updateInputFromClientX(e.clientX, e.clientY, true);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1 && gameState === 'PLAYING') {
+                updateInputFromClientX(e.clientX, e.clientY, false);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (activeTouches.size === 0) {
+                inputDir = 0;
+            }
+        });
+
+        // Touch Events
+        canvas.addEventListener('touchstart', (e) => {
+            if (gameState !== 'PLAYING') return;
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const dir = t.clientX < width / 2 ? -1 : 1;
+                activeTouches.set(t.identifier, dir);
+                inputDir = dir;
+                addTouchIndicator(t.clientX, t.clientY, dir);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (gameState !== 'PLAYING') return;
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const dir = t.clientX < width / 2 ? -1 : 1;
+                activeTouches.set(t.identifier, dir);
+                inputDir = dir;
+            }
+        }, { passive: false });
+
+        function handleTouchEnd(e) {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                activeTouches.delete(e.changedTouches[i].identifier);
+            }
+            if (activeTouches.size > 0) {
+                const values = Array.from(activeTouches.values());
+                inputDir = values[values.length - 1];
+            } else {
+                inputDir = 0;
+            }
+        }
+        canvas.addEventListener('touchend', handleTouchEnd);
+        canvas.addEventListener('touchcancel', handleTouchEnd);
+
+        // Optional Keyboard Support (Arrow Keys / A & D / Escape to pause)
+        const keysDown = {};
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+                if (gameState === 'PLAYING') pauseGame();
+                else if (gameState === 'PAUSED') startResumeCountdown();
+                return;
+            }
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keysDown.left = true;
+                if (gameState === 'PLAYING') inputDir = -1;
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keysDown.right = true;
+                if (gameState === 'PLAYING') inputDir = 1;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keysDown.left = false;
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keysDown.right = false;
+            }
+            if (!keysDown.left && !keysDown.right && activeTouches.size === 0) {
+                inputDir = 0;
+            } else if (keysDown.left && gameState === 'PLAYING') {
+                inputDir = -1;
+            } else if (keysDown.right && gameState === 'PLAYING') {
+                inputDir = 1;
+            }
+        });
+
+        // Asteroid Generator
+        function spawnAsteroid(targetedX = null) {
+            const isSniper = targetedX !== null;
+            const radius = isSniper ? (Math.random() * 10 + 24) : (Math.random() * 26 + 20);
+            const x = isSniper
+                ? Math.max(radius, Math.min(width - radius, targetedX))
+                : Math.random() * (width - radius * 2) + radius;
+            const y = -radius - 25;
+
+            const difficultyMultiplier = 1 + Math.min(score / 45, 1.8);
+            const baseVy = (Math.random() * 140 + 210) * difficultyMultiplier;
+            const vy = isSniper ? baseVy * 2.0 : baseVy;
+            const vx = isSniper ? 0 : (Math.random() - 0.5) * 70;
+            const rotSpeed = isSniper ? ((Math.random() < 0.5 ? -1 : 1) * 5.5) : ((Math.random() - 0.5) * 3.2);
+
+            const vertices = [];
+            const numPoints = Math.floor(Math.random() * 5) + 9;
+            for (let i = 0; i < numPoints; i++) {
+                const theta = (i / numPoints) * Math.PI * 2;
+                const variance = 0.76 + Math.random() * 0.34;
+                vertices.push({
+                    x: Math.cos(theta) * radius * variance,
+                    y: Math.sin(theta) * radius * variance
+                });
+            }
+
+            const craters = [];
+            const craterCount = Math.floor(Math.random() * 3) + 2;
+            for (let i = 0; i < craterCount; i++) {
+                const cAngle = Math.random() * Math.PI * 2;
+                const cDist = Math.random() * (radius * 0.45);
+                craters.push({
+                    x: Math.cos(cAngle) * cDist,
+                    y: Math.sin(cAngle) * cDist,
+                    r: radius * (0.14 + Math.random() * 0.14)
+                });
+            }
+
+            asteroids.push({
+                x,
+                y,
+                radius,
+                vx,
+                vy,
+                angle: Math.random() * Math.PI * 2,
+                rotSpeed,
+                vertices,
+                craters,
+                passed: false,
+                isSniper
+            });
+        }
+
+        // Particle Emitter
+        function emitExhaust() {
+            const cos = Math.cos(rocket.angle);
+            const sin = Math.sin(rocket.angle);
+            const nozzleOffset = rocket.height * 0.48;
+            const px = rocket.x - sin * nozzleOffset + (Math.random() - 0.5) * 8;
+            const py = rocket.y + cos * nozzleOffset;
+
+            const colors = ['#38bdf8', '#fbbf24', '#f97316', '#ffffff'];
+            particles.push({
+                x: px,
+                y: py,
+                vx: -sin * 120 + (Math.random() - 0.5) * 45,
+                vy: cos * 160 + Math.random() * 80,
+                size: Math.random() * 5 + 3,
+                alpha: 1,
+                decay: Math.random() * 2.5 + 2.2,
+                color: colors[Math.floor(Math.random() * colors.length)]
+            });
+        }
+
+        function emitExplosion(x, y) {
+            const colors = ['#ef4444', '#f97316', '#fbbf24', '#38bdf8', '#ffffff'];
+            for (let i = 0; i < 65; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 380 + 60;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: Math.random() * 7 + 3,
+                    alpha: 1,
+                    decay: Math.random() * 1.2 + 0.8,
+                    color: colors[Math.floor(Math.random() * colors.length)]
+                });
+            }
+        }
+
+        // Reset & Start Game
+        function startGame() {
+            score = 0;
+            scoreDisplay.textContent = '0';
+            scoreBox.style.visibility = 'visible';
+            asteroids = [];
+            particles = [];
+            touchIndicators = [];
+            inputDir = 0;
+            activeTouches.clear();
+
+            rocket.x = width / 2;
+            rocket.y = height - Math.max(100, height * 0.15);
+            rocket.vx = 0;
+            rocket.angle = 0;
+            rocket.targetAngle = 0;
+            rocket.angleVel = 0;
+
+            idleTime = 0;
+            lastCheckedX = rocket.x;
+            sniperWarningTimer = 0;
+
+            spawnTimer = 0;
+            gameState = 'PLAYING';
+            overlay.classList.add('hidden');
+            cosmeticsOverlay.classList.remove('active');
+            pauseOverlay.classList.add('hidden');
+            countdownOverlay.classList.add('hidden');
+            pauseBtn.style.display = 'flex';
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            inputDir = 0;
+            activeTouches.clear();
+            pauseBtn.style.display = 'none';
+            screenShake = 18;
+            emitExplosion(rocket.x, rocket.y);
+
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('rocketDodgeBest', bestScore);
+                bestDisplay.textContent = bestScore;
+            }
+
+            setTimeout(() => {
+                menuBadge.style.display = 'none';
+                overlayTitle.textContent = 'Hull Breached!';
+                overlayDesc.innerHTML = 'Watch out for incoming asteroid fields.<br>Hold left or right to bank, release to fly straight.';
+                finalScoreBox.style.display = 'block';
+                finalScoreVal.textContent = score;
+                startBtn.textContent = 'Play Again';
+                startBtn.classList.remove('play-hero');
+                overlay.classList.remove('hidden');
+            }, 650);
+        }
+
+        startBtn.addEventListener('click', startGame);
+
+        // Helper to trace main fuselage path
+        function traceFuselagePath(w, h) {
+            ctx.beginPath();
+            ctx.moveTo(0, -h * 0.52);
+            ctx.bezierCurveTo(w * 0.48, -h * 0.2, w * 0.45, h * 0.2, w * 0.32, h * 0.38);
+            ctx.lineTo(-w * 0.32, h * 0.38);
+            ctx.bezierCurveTo(-w * 0.45, h * 0.2, -w * 0.48, -h * 0.2, 0, -h * 0.52);
+            ctx.closePath();
+        }
+
+        // Draw Detailed Sleek Spaceship/Rocket with Equipped Hull Skin
+        function drawRocket() {
+            if (gameState === 'GAMEOVER') return;
+
+            const activeSkin = getEquippedRocketSkin();
+            const isFullBody = Boolean(activeSkin.fullBody);
+
+            const finFill = isFullBody ? activeSkin.finColor : '#ef4444';
+            const centerFinFill = isFullBody ? activeSkin.centerFinColor : '#dc2626';
+            const tipFill = isFullBody ? activeSkin.tipColor : '#ef4444';
+            const stripeFill = isFullBody ? activeSkin.stripeColor : '#3b82f6';
+            const nozzleFill = isFullBody ? activeSkin.nozzleColor : '#334155';
+
+            ctx.save();
+            ctx.translate(rocket.x, rocket.y);
+            ctx.rotate(rocket.angle);
+
+            const w = rocket.width;
+            const h = rocket.height;
+
+            // Dynamic Thruster Flame
+            if (gameState === 'PLAYING' || gameState === 'START') {
+                rocket.flameFlicker += 0.35;
+            }
+            const flameLen = (inputDir !== 0 ? 34 : 26) + Math.sin(rocket.flameFlicker) * 7;
+
+            // Outer Flame
+            const flameGrad = ctx.createLinearGradient(0, h * 0.42, 0, h * 0.42 + flameLen);
+            flameGrad.addColorStop(0, '#38bdf8');
+            flameGrad.addColorStop(0.5, '#f97316');
+            flameGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.24, h * 0.42);
+            ctx.quadraticCurveTo(0, h * 0.42 + flameLen * 1.25, w * 0.24, h * 0.42);
+            ctx.closePath();
+            ctx.fillStyle = flameGrad;
+            ctx.fill();
+
+            // Inner Hot Core Flame
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.12, h * 0.42);
+            ctx.quadraticCurveTo(0, h * 0.42 + flameLen * 0.7, w * 0.12, h * 0.42);
+            ctx.closePath();
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Left & Right Swept Fins
+            ctx.fillStyle = finFill;
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.32, h * 0.1);
+            ctx.lineTo(-w * 0.72, h * 0.44);
+            ctx.lineTo(-w * 0.32, h * 0.36);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(w * 0.32, h * 0.1);
+            ctx.lineTo(w * 0.72, h * 0.44);
+            ctx.lineTo(w * 0.32, h * 0.36);
+            ctx.closePath();
+            ctx.fill();
+
+            // Metallic sheen highlight on fins for Shiny Gold
+            if (activeSkin.shinyGold) {
+                ctx.fillStyle = 'rgba(254, 249, 195, 0.55)';
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.32, h * 0.12);
+                ctx.lineTo(-w * 0.62, h * 0.38);
+                ctx.lineTo(-w * 0.32, h * 0.24);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(w * 0.32, h * 0.12);
+                ctx.lineTo(w * 0.62, h * 0.38);
+                ctx.lineTo(w * 0.32, h * 0.24);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Center Stabilizer Fin
+            ctx.fillStyle = centerFinFill;
+            ctx.beginPath();
+            ctx.moveTo(-3, h * 0.18);
+            ctx.lineTo(0, h * 0.48);
+            ctx.lineTo(3, h * 0.18);
+            ctx.closePath();
+            ctx.fill();
+
+            // Engine Nozzle
+            ctx.fillStyle = nozzleFill;
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.25, h * 0.36);
+            ctx.lineTo(-w * 0.3, h * 0.46);
+            ctx.lineTo(w * 0.3, h * 0.46);
+            ctx.lineTo(w * 0.25, h * 0.36);
+            ctx.closePath();
+            ctx.fill();
+
+            // Main Fuselage Body with Equipped Skin Shading
+            const bodyGrad = ctx.createLinearGradient(-w * 0.4, 0, w * 0.4, 0);
+            bodyGrad.addColorStop(0, activeSkin.stops[0]);
+            bodyGrad.addColorStop(0.35, activeSkin.stops[1]);
+            bodyGrad.addColorStop(0.75, activeSkin.stops[2]);
+            bodyGrad.addColorStop(1, activeSkin.stops[3]);
+
+            ctx.fillStyle = bodyGrad;
+            traceFuselagePath(w, h);
+            ctx.fill();
+
+            // Clipped Fuselage Details (Blended Nebula Shapes, Nose Tip, Rear Stripe, Gold Sheen)
+            ctx.save();
+            traceFuselagePath(w, h);
+            ctx.clip();
+
+            // Random organic blended shapes for Pink & Purple skin (past 130)
+            if (activeSkin.blendPattern) {
+                ctx.save();
+                ctx.filter = 'blur(3.5px)';
+                BLEND_PATCHES.forEach(p => {
+                    ctx.save();
+                    ctx.translate(p.x * w, p.y * h);
+                    ctx.rotate(p.rot);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, p.rx * w, p.ry * h, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+                ctx.restore();
+            }
+
+            // Nose Cone Tip & Accent Stripe
+            ctx.fillStyle = tipFill;
+            ctx.fillRect(-w, -h * 0.55, w * 2, h * 0.22);
+            ctx.fillStyle = stripeFill;
+            ctx.fillRect(-w, h * 0.26, w * 2, h * 0.06);
+
+            // Specular metallic sheen texture & moving shimmer across the entire Shiny Gold rocket (200+)
+            if (activeSkin.shinyGold) {
+                // Vertical bright gold specular reflection bar
+                const specGrad = ctx.createLinearGradient(-w * 0.35, 0, w * 0.35, 0);
+                specGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                specGrad.addColorStop(0.28, 'rgba(254, 249, 195, 0.65)');
+                specGrad.addColorStop(0.42, 'rgba(255, 255, 255, 0.85)');
+                specGrad.addColorStop(0.58, 'rgba(253, 224, 71, 0.25)');
+                specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = specGrad;
+                ctx.fillRect(-w, -h * 0.6, w * 2, h * 1.2);
+
+                // Animated diagonal glint sweep
+                const shimmerY = ((performance.now() * 0.05) % (h * 1.6)) - h * 0.8;
+                ctx.save();
+                ctx.translate(0, shimmerY);
+                ctx.rotate(-0.35);
+                const glintGrad = ctx.createLinearGradient(0, -10, 0, 10);
+                glintGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                glintGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.65)');
+                glintGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = glintGrad;
+                ctx.fillRect(-w * 1.5, -10, w * 3, 20);
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // Subtle outline on dark black skins so they stand out crisply against space
+            if (activeSkin.id === 'black' || activeSkin.id === 'full_black') {
+                traceFuselagePath(w, h);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+                ctx.stroke();
+            } else if (activeSkin.shinyGold) {
+                traceFuselagePath(w, h);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(254, 240, 138, 0.75)';
+                ctx.stroke();
+            }
+
+            // Cockpit Window (Always preserved across all skins)
+            const glassGrad = ctx.createRadialGradient(-3, -h * 0.08, 2, 0, -h * 0.05, w * 0.25);
+            glassGrad.addColorStop(0, '#bae6fd');
+            glassGrad.addColorStop(0.5, '#0284c7');
+            glassGrad.addColorStop(1, '#0f172a');
+
+            ctx.fillStyle = glassGrad;
+            ctx.beginPath();
+            ctx.arc(0, -h * 0.05, w * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = activeSkin.shinyGold ? '#b45309' : (activeSkin.id === 'copper' ? '#7c3f1d' : '#475569');
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.ellipse(-w * 0.07, -h * 0.1, 3.5, 2, -0.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // Draw Jagged Asteroid
+        function drawAsteroid(ast) {
+            ctx.save();
+            ctx.translate(ast.x, ast.y);
+
+            if (ast.isSniper) {
+                const trailGrad = ctx.createLinearGradient(0, -ast.radius * 3.2, 0, ast.radius * 0.5);
+                trailGrad.addColorStop(0, 'rgba(239, 68, 68, 0)');
+                trailGrad.addColorStop(0.6, 'rgba(249, 115, 22, 0.35)');
+                trailGrad.addColorStop(1, 'rgba(239, 68, 68, 0.75)');
+                ctx.fillStyle = trailGrad;
+                ctx.beginPath();
+                ctx.moveTo(-ast.radius * 0.85, 0);
+                ctx.lineTo(0, -ast.radius * 3.4);
+                ctx.lineTo(ast.radius * 0.85, 0);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.rotate(ast.angle);
+
+            const grad = ctx.createRadialGradient(-ast.radius * 0.3, -ast.radius * 0.3, ast.radius * 0.1, 0, 0, ast.radius);
+            if (ast.isSniper) {
+                grad.addColorStop(0, '#fca5a5');
+                grad.addColorStop(0.55, '#7f1d1d');
+                grad.addColorStop(1, '#291519');
+            } else {
+                grad.addColorStop(0, '#94a3b8');
+                grad.addColorStop(0.6, '#475569');
+                grad.addColorStop(1, '#1e293b');
+            }
+
+            ctx.fillStyle = grad;
+            ctx.strokeStyle = ast.isSniper ? '#f87171' : '#334155';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ast.vertices.forEach((v, idx) => {
+                if (idx === 0) ctx.moveTo(v.x, v.y);
+                else ctx.lineTo(v.x, v.y);
+            });
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+            ast.craters.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            ctx.restore();
+        }
+
+        // Main Update Loop
+        let lastTime = performance.now();
+        let spawnTimer = 0;
+
+        function update(dt) {
+            if (gameState === 'PAUSED') return;
+
+            if (gameState === 'COUNTDOWN') {
+                countdownTimer -= dt;
+                const currentInt = Math.ceil(countdownTimer);
+                if (currentInt > 0 && currentInt !== lastCountdownInt) {
+                    lastCountdownInt = currentInt;
+                    countdownText.textContent = currentInt;
+                    countdownText.style.animation = 'none';
+                    void countdownText.offsetWidth;
+                    countdownText.style.animation = 'popScale 0.85s ease-out infinite';
+                }
+                if (countdownTimer <= 0) {
+                    countdownOverlay.classList.add('hidden');
+                    pauseBtn.style.display = 'flex';
+                    gameState = 'PLAYING';
+                }
+                return;
+            }
+
+            const starSpeedBoost = gameState === 'PLAYING' ? 1.6 : 0.6;
+            stars.forEach(star => {
+                star.y += star.speed * starSpeedBoost * dt;
+                if (star.y > height) {
+                    star.y = 0;
+                    star.x = Math.random() * width;
+                }
+            });
+
+            if (screenShake > 0) {
+                screenShake = Math.max(0, screenShake - dt * 45);
+            }
+
+            for (let i = touchIndicators.length - 1; i >= 0; i--) {
+                const ind = touchIndicators[i];
+                ind.radius += 160 * dt;
+                ind.alpha -= 1.6 * dt;
+                if (ind.alpha <= 0) {
+                    touchIndicators.splice(i, 1);
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.alpha -= p.decay * dt;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            if (gameState !== 'PLAYING') return;
+
+            if (inputDir !== 0) {
+                rocket.vx += inputDir * rocket.accel * dt;
+                if (rocket.vx > rocket.maxSpeed) rocket.vx = rocket.maxSpeed;
+                if (rocket.vx < -rocket.maxSpeed) rocket.vx = -rocket.maxSpeed;
+                rocket.targetAngle = inputDir * rocket.maxTilt;
+            } else {
+                if (Math.abs(rocket.vx) < rocket.friction * dt) {
+                    rocket.vx = 0;
+                } else {
+                    rocket.vx -= Math.sign(rocket.vx) * rocket.friction * dt;
+                }
+                rocket.targetAngle = 0;
+            }
+
+            const stiffness = 68;
+            const damping = 16.5;
+            const angularAccel = (rocket.targetAngle - rocket.angle) * stiffness - rocket.angleVel * damping;
+            rocket.angleVel += angularAccel * dt;
+            rocket.angle += rocket.angleVel * dt;
+
+            rocket.x += rocket.vx * dt;
+            const halfW = rocket.width * 0.65;
+            if (rocket.x < halfW) {
+                rocket.x = halfW;
+                rocket.vx = 0;
+            } else if (rocket.x > width - halfW) {
+                rocket.x = width - halfW;
+                rocket.vx = 0;
+            }
+
+            if (Math.abs(rocket.x - lastCheckedX) < 28 && inputDir === 0) {
+                idleTime += dt;
+                if (idleTime >= 6.0) {
+                    spawnAsteroid(rocket.x);
+                    sniperWarningTimer = 0.85;
+                    idleTime = 0;
+                }
+            } else {
+                idleTime = 0;
+                lastCheckedX = rocket.x;
+            }
+
+            if (sniperWarningTimer > 0) {
+                sniperWarningTimer = Math.max(0, sniperWarningTimer - dt);
+            }
+
+            emitExhaust();
+
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnAsteroid();
+                const minInterval = Math.max(0.24, 0.75 - score * 0.008);
+                spawnTimer = minInterval + Math.random() * 0.35;
+            }
+
+            for (let i = asteroids.length - 1; i >= 0; i--) {
+                const ast = asteroids[i];
+                ast.x += ast.vx * dt;
+                ast.y += ast.vy * dt;
+                ast.angle += ast.rotSpeed * dt;
+
+                if (ast.x < ast.radius) {
+                    ast.x = ast.radius;
+                    ast.vx *= -1;
+                } else if (ast.x > width - ast.radius) {
+                    ast.x = width - ast.radius;
+                    ast.vx *= -1;
+                }
+
+                if (!ast.passed && ast.y - ast.radius > rocket.y + rocket.height * 0.4) {
+                    ast.passed = true;
+                    score++;
+                    scoreDisplay.textContent = score;
+                }
+
+                if (ast.y - ast.radius > height + 50) {
+                    asteroids.splice(i, 1);
+                    continue;
+                }
+
+                const dx = ast.x - rocket.x;
+                const dy = ast.y - (rocket.y + 4);
+                const dist = Math.hypot(dx, dy);
+                const rocketHitRadius = rocket.width * 0.42;
+                const astHitRadius = ast.radius * 0.82;
+
+                if (dist < rocketHitRadius + astHitRadius) {
+                    triggerGameOver();
+                    return;
+                }
+            }
+        }
+
+        // Main Render Loop
+        function draw() {
+            ctx.save();
+
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+            bgGrad.addColorStop(0, '#050814');
+            bgGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            if (screenShake > 0) {
+                const sx = (Math.random() - 0.5) * screenShake;
+                const sy = (Math.random() - 0.5) * screenShake;
+                ctx.translate(sx, sy);
+            }
+
+            stars.forEach(star => {
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            touchIndicators.forEach(ind => {
+                ctx.strokeStyle = `rgba(56, 189, 248, ${ind.alpha})`;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(ind.x, ind.y, ind.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+
+            particles.forEach(p => {
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+
+            asteroids.forEach(drawAsteroid);
+
+            drawRocket();
+
+            ctx.restore();
+        }
+
+        function gameLoop(now) {
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Boot Game
+        initStars();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
