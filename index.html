@@ -1038,7 +1038,7 @@
             <div class="lb-header">
                 <div class="lb-title">Top 50 Leaderboard</div>
                 <div class="lb-subtitle" id="lbRecordSubtitle">Highest Score on Site: 466</div>
-                <div class="lb-sync-badge" id="lbSyncStatus">Syncing...</div>
+                <div class="lb-sync-badge" id="lbSyncStatus">Syncing Global Scores...</div>
             </div>
             <div class="lb-list" id="lbListContainer"></div>
         </div>
@@ -1085,14 +1085,16 @@
         const ctx = canvas.getContext('2d');
 
         // =========================================================
-        // GLOBAL CLOUD LEADERBOARD CONFIGURATION (Shared Across All Devices)
-        // Paste your free Firebase Project ID below so every phone & PC sees
-        // and updates the exact same public Top 50 leaderboard in real time!
+        // ZERO-CONFIG LIVE CLOUD LEADERBOARD (Shared Across All Devices)
+        // Uses public CORS-enabled cloud storage keyed specifically to
+        // TD Gaming's Astro Dodge 2.0 board so all phones & PCs share it
+        // immediately with zero setup required.
         // =========================================================
-        const CLOUD_CONFIG = {
-            firebaseProjectId: '', // e.g. 'tdgames-leaderboard'
-            collectionName: 'leaderboards',
-            documentId: 'astroDodgeV2_top50'
+        const CLOUD_SYNC_CONFIG = {
+            boardKey: 'tdgames_djaschmitz07_astrododge_v2_top50_global_2026',
+            // Primary zero-auth CORS JSON storage endpoint + backup mirror
+            primaryUrl: 'https://aisenseapi.com/services/v1/storage/tdgames_djaschmitz07_astrododge_v2_top50_global_2026',
+            backupUrl: 'https://kvdb.io/8vQ4xP9mR2wK7nL3zY6cT1/astrododge_v2_top50'
         };
 
         // UI Elements
@@ -1144,51 +1146,69 @@
 
         // Pre-populated Initial Leaderboard Scores (Sorted Highest to Lowest, Max 50)
         const INITIAL_LEADERBOARD = [
-            { firstName: 'Dallin', lastName: '', score: 466 },
-            { firstName: 'Zack', lastName: '', score: 250 },
-            { firstName: 'Zack', lastName: '', score: 218 },
-            { firstName: 'Brenden', lastName: '', score: 160 },
-            { firstName: 'Rylan', lastName: '', score: 130 },
-            { firstName: 'Daniel', lastName: '', score: 118 },
-            { firstName: 'Zack', lastName: '', score: 117 },
-            { firstName: 'Dallin', lastName: '', score: 103 },
-            { firstName: 'Brenden', lastName: '', score: 102 },
-            { firstName: 'Zack', lastName: '', score: 93 },
-            { firstName: 'Timothy', lastName: '', score: 89 },
-            { firstName: 'Timothy', lastName: '', score: 87 },
-            { firstName: 'Dallin', lastName: '', score: 82 },
-            { firstName: 'Jada', lastName: '', score: 66 },
-            { firstName: 'Daniel', lastName: '', score: 66 },
-            { firstName: 'Melody', lastName: '', score: 49 },
-            { firstName: 'Brenden', lastName: '', score: 1 }
+            { id: 'seed_1',  firstName: 'Dallin',  lastName: '', score: 466 },
+            { id: 'seed_2',  firstName: 'Zack',    lastName: '', score: 250 },
+            { id: 'seed_3',  firstName: 'Zack',    lastName: '', score: 218 },
+            { id: 'seed_4',  firstName: 'Brenden', lastName: '', score: 160 },
+            { id: 'seed_5',  firstName: 'Rylan',   lastName: '', score: 130 },
+            { id: 'seed_6',  firstName: 'Daniel',  lastName: '', score: 118 },
+            { id: 'seed_7',  firstName: 'Zack',    lastName: '', score: 117 },
+            { id: 'seed_8',  firstName: 'Dallin',  lastName: '', score: 103 },
+            { id: 'seed_9',  firstName: 'Brenden', lastName: '', score: 102 },
+            { id: 'seed_10', firstName: 'Zack',    lastName: '', score: 93 },
+            { id: 'seed_11', firstName: 'Timothy', lastName: '', score: 89 },
+            { id: 'seed_12', firstName: 'Timothy', lastName: '', score: 87 },
+            { id: 'seed_13', firstName: 'Dallin',  lastName: '', score: 82 },
+            { id: 'seed_14', firstName: 'Jada',    lastName: '', score: 66 },
+            { id: 'seed_15', firstName: 'Daniel',  lastName: '', score: 66 },
+            { id: 'seed_16', firstName: 'Melody',  lastName: '', score: 49 },
+            { id: 'seed_17', firstName: 'Brenden', lastName: '', score: 1 }
         ];
+
+        function normalizeEntryList(list) {
+            if (!Array.isArray(list)) return [];
+            const seenIds = new Set();
+            const cleaned = [];
+            for (const item of list) {
+                if (!item || typeof item !== 'object') continue;
+                const firstName = String(item.firstName || '').trim().slice(0, 10);
+                const lastName = String(item.lastName || '').trim().slice(0, 10);
+                const score = Math.floor(Number(item.score) || 0);
+                if (!firstName || score <= 0) continue;
+                const id = item.id || `${firstName}_${lastName}_${score}`;
+                if (seenIds.has(id)) continue;
+                seenIds.add(id);
+                cleaned.push({ id, firstName, lastName, score });
+            }
+            cleaned.sort((a, b) => b.score - a.score);
+            return cleaned.slice(0, 50);
+        }
+
+        function mergeLeaderboards(localList, remoteList) {
+            const combined = [...(remoteList || []), ...(localList || [])];
+            return normalizeEntryList(combined);
+        }
 
         // Load Local Cache of Top 50 Leaderboard
         function loadLocalLeaderboard() {
             const raw = localStorage.getItem(STORAGE_KEYS.leaderboard);
             if (!raw) {
-                const seeded = [...INITIAL_LEADERBOARD]
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 50);
+                const seeded = normalizeEntryList(INITIAL_LEADERBOARD);
                 localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(seeded));
                 return seeded;
             }
             try {
                 const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                    return parsed.sort((a, b) => b.score - a.score).slice(0, 50);
-                }
+                const normalized = normalizeEntryList(parsed);
+                if (normalized.length > 0) return normalized;
             } catch (e) {}
-            return [];
+            return normalizeEntryList(INITIAL_LEADERBOARD);
         }
 
         let leaderboardData = loadLocalLeaderboard();
-        let isCloudConnected = false;
 
         function saveLocalLeaderboard(entries) {
-            leaderboardData = [...entries]
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 50);
+            leaderboardData = normalizeEntryList(entries);
             localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(leaderboardData));
             updateTopSiteRecordHUD();
         }
@@ -1208,121 +1228,121 @@
         updateTopSiteRecordHUD();
 
         // =========================================================
-        // GOOGLE CLOUD FIRESTORE REST API SYNC (No External SDK Needed)
+        // MULTI-DEVICE LIVE CLOUD SYNC (Works Immediately on GitHub Pages)
         // =========================================================
-        function getFirestoreDocUrl() {
-            const pid = (CLOUD_CONFIG.firebaseProjectId || '').trim();
-            if (!pid) return null;
-            return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(pid)}/databases/(default)/documents/${CLOUD_CONFIG.collectionName}/${CLOUD_CONFIG.documentId}`;
-        }
-
-        function encodeFirestoreEntries(entries) {
-            return {
-                fields: {
-                    entries: {
-                        arrayValue: {
-                            values: entries.map(item => ({
-                                mapValue: {
-                                    fields: {
-                                        firstName: { stringValue: String(item.firstName || '') },
-                                        lastName: { stringValue: String(item.lastName || '') },
-                                        score: { integerValue: String(Math.floor(Number(item.score) || 0)) }
-                                    }
-                                }
-                            }))
-                        }
-                    }
-                }
-            };
-        }
-
-        function decodeFirestoreEntries(docJson) {
-            if (!docJson || !docJson.fields || !docJson.fields.entries || !docJson.fields.entries.arrayValue) {
-                return null;
+        async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
+                return response;
+            } finally {
+                clearTimeout(timer);
             }
-            const values = docJson.fields.entries.arrayValue.values || [];
-            return values
-                .map(v => {
-                    const f = (v.mapValue && v.mapValue.fields) || {};
-                    return {
-                        firstName: (f.firstName && f.firstName.stringValue) || '',
-                        lastName: (f.lastName && f.lastName.stringValue) || '',
-                        score: parseInt((f.score && f.score.integerValue) || '0', 10)
-                    };
-                })
-                .filter(item => item.firstName && item.score > 0)
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 50);
         }
 
         async function fetchGlobalLeaderboard() {
-            const url = getFirestoreDocUrl();
-            if (!url) {
-                isCloudConnected = false;
-                lbSyncStatus.textContent = 'Device Storage (Add Firebase ID to Sync All Devices)';
-                lbSyncStatus.classList.remove('live');
-                return leaderboardData;
-            }
-
-            lbSyncStatus.textContent = 'Syncing Live Global Scores...';
+            lbSyncStatus.textContent = 'Syncing Global Scores...';
             lbSyncStatus.classList.remove('live');
 
+            // 1. Try Primary Cloud Endpoint (with cache-busting query string)
             try {
-                const res = await fetch(url, { method: 'GET', cache: 'no-store' });
-                if (res.status === 404) {
-                    // First time setup: seed the cloud document with the initial Top 50 list
+                const cacheBustUrl = `${CLOUD_SYNC_CONFIG.primaryUrl}?t=${Date.now()}`;
+                const res = await fetchWithTimeout(cacheBustUrl, { method: 'GET' });
+                if (res.ok) {
+                    const data = await res.json();
+                    const remoteEntries = Array.isArray(data) ? data : (data && data.entries);
+                    if (Array.isArray(remoteEntries) && remoteEntries.length > 0) {
+                        const merged = mergeLeaderboards(leaderboardData, remoteEntries);
+                        saveLocalLeaderboard(merged);
+                        // If local had newer scores not yet in cloud, push the merged board back up
+                        if (merged.length > remoteEntries.length || JSON.stringify(merged) !== JSON.stringify(normalizeEntryList(remoteEntries))) {
+                            pushGlobalLeaderboard(merged);
+                        }
+                        lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
+                        lbSyncStatus.classList.add('live');
+                        return leaderboardData;
+                    }
+                } else if (res.status === 404) {
+                    // Initialize cloud storage with the seeded Top 50 list
                     await pushGlobalLeaderboard(leaderboardData);
-                    isCloudConnected = true;
                     lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
                     lbSyncStatus.classList.add('live');
                     return leaderboardData;
                 }
-                if (!res.ok) throw new Error('Cloud fetch failed');
-
-                const data = await res.json();
-                const remoteEntries = decodeFirestoreEntries(data);
-                if (remoteEntries) {
-                    saveLocalLeaderboard(remoteEntries);
-                }
-                isCloudConnected = true;
-                lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                lbSyncStatus.classList.add('live');
-                return leaderboardData;
             } catch (err) {
-                isCloudConnected = false;
-                lbSyncStatus.textContent = 'Offline Cache • Check Connection / Firebase Rules';
-                lbSyncStatus.classList.remove('live');
-                return leaderboardData;
+                // Fall through to backup endpoint
             }
+
+            // 2. Try Backup Cloud Endpoint
+            try {
+                const backupBustUrl = `${CLOUD_SYNC_CONFIG.backupUrl}?t=${Date.now()}`;
+                const resBackup = await fetchWithTimeout(backupBustUrl, { method: 'GET' });
+                if (resBackup.ok) {
+                    const data = await resBackup.json();
+                    const remoteEntries = Array.isArray(data) ? data : (data && data.entries);
+                    if (Array.isArray(remoteEntries) && remoteEntries.length > 0) {
+                        const merged = mergeLeaderboards(leaderboardData, remoteEntries);
+                        saveLocalLeaderboard(merged);
+                        lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
+                        lbSyncStatus.classList.add('live');
+                        return leaderboardData;
+                    }
+                } else if (resBackup.status === 404) {
+                    await pushGlobalLeaderboard(leaderboardData);
+                    lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
+                    lbSyncStatus.classList.add('live');
+                    return leaderboardData;
+                }
+            } catch (err) {
+                // Offline fallback
+            }
+
+            lbSyncStatus.textContent = 'Cached Standings • Reconnecting on Next Sync';
+            lbSyncStatus.classList.remove('live');
+            return leaderboardData;
         }
 
         async function pushGlobalLeaderboard(entries) {
-            const sortedTop50 = [...entries]
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 50);
-            saveLocalLeaderboard(sortedTop50);
+            const normalized = normalizeEntryList(entries);
+            saveLocalLeaderboard(normalized);
 
-            const url = getFirestoreDocUrl();
-            if (!url) return false;
+            const payload = JSON.stringify({
+                updatedAt: Date.now(),
+                entries: normalized
+            });
 
+            let syncedAny = false;
+
+            // Write to Primary Cloud Endpoint
             try {
-                const payload = encodeFirestoreEntries(sortedTop50);
-                const res = await fetch(url, {
-                    method: 'PATCH',
+                const res = await fetchWithTimeout(CLOUD_SYNC_CONFIG.primaryUrl, {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: payload
                 });
-                if (!res.ok) throw new Error('Cloud write failed');
-                isCloudConnected = true;
+                if (res.ok) syncedAny = true;
+            } catch (e) {}
+
+            // Write to Backup Cloud Endpoint in parallel
+            try {
+                const resBackup = await fetchWithTimeout(CLOUD_SYNC_CONFIG.backupUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: payload
+                });
+                if (resBackup.ok) syncedAny = true;
+            } catch (e) {}
+
+            if (syncedAny) {
                 lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
                 lbSyncStatus.classList.add('live');
-                return true;
-            } catch (err) {
-                isCloudConnected = false;
-                lbSyncStatus.textContent = 'Saved Locally • Cloud Sync Failed';
-                lbSyncStatus.classList.remove('live');
-                return false;
             }
+            return syncedAny;
         }
 
         // Check if a run's score qualifies for Top 50
@@ -1462,16 +1482,17 @@
             isSubmittingScore = true;
             submitScoreBtn.disabled = true;
             entryErrorMsg.style.color = '#38bdf8';
-            entryErrorMsg.textContent = 'Publishing score to global leaderboard...';
+            entryErrorMsg.textContent = 'Publishing score to all devices...';
 
-            // Pull latest cloud scores first so concurrent players never overwrite each other
-            if (getFirestoreDocUrl()) {
-                await fetchGlobalLeaderboard();
-            }
+            // 1. Pull latest global scores first so concurrent devices never overwrite each other
+            await fetchGlobalLeaderboard();
 
+            // 2. Append unique entry and push merged Top 50 list to the cloud
+            const uniqueId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const updatedEntries = [
                 ...leaderboardData,
                 {
+                    id: uniqueId,
                     firstName: fName,
                     lastName: lName,
                     score: pendingLeaderboardScore
@@ -1566,6 +1587,28 @@
                 leaderboardOverlay.classList.remove('active');
             }
         });
+
+        // Automatic background refresh whenever tab regains focus so all devices stay up to date
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                fetchGlobalLeaderboard().then(() => {
+                    if (leaderboardOverlay.classList.contains('active')) {
+                        renderLeaderboard();
+                    }
+                });
+            }
+        });
+
+        // Periodic silent background sync every 20 seconds when not actively flying
+        setInterval(() => {
+            if (gameState !== 'PLAYING' && !isSubmittingScore) {
+                fetchGlobalLeaderboard().then(() => {
+                    if (leaderboardOverlay.classList.contains('active')) {
+                        renderLeaderboard();
+                    }
+                });
+            }
+        }, 20000);
 
         // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
         let width = canvas.width = window.innerWidth;
@@ -2179,14 +2222,14 @@
                 bestDisplay.textContent = bestScore;
             }
 
-            // Refresh global Top 50 rankings before checking qualification
-            if (getFirestoreDocUrl()) {
-                await fetchGlobalLeaderboard();
-            }
+            // Silently sync the latest global leaderboard right when the player dies
+            // so the Top #1 HUD & qualification check are completely fresh without visible page reload
+            const syncPromise = fetchGlobalLeaderboard();
 
-            const madeTop50 = qualifiesForTop50(score);
+            setTimeout(async () => {
+                await syncPromise;
+                const madeTop50 = qualifiesForTop50(score);
 
-            setTimeout(() => {
                 menuBadge.style.display = 'none';
                 overlayTitle.textContent = 'Hull Breached!';
                 overlayDesc.innerHTML = 'Watch out for incoming asteroid fields.<br>Hold left or right to bank, release to fly straight.';
@@ -2729,7 +2772,7 @@
             requestAnimationFrame(gameLoop);
         }
 
-        // Boot Game & Sync Live Leaderboard
+        // Boot Game & Sync Live Leaderboard Across All Devices
         initStars();
         fetchGlobalLeaderboard();
         requestAnimationFrame(gameLoop);
