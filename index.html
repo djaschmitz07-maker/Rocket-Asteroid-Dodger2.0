@@ -1181,6 +1181,24 @@
             // claiming to be live.
             dbUrl: 'https://rocket-dodger-default-rtdb.firebaseio.com',
 
+            // ONLY these websites may touch the leaderboard. Anywhere else -
+            // a copy of this file put up on somebody else's site, or opened
+            // off a desktop - the game still plays perfectly but keeps its
+            // scores to itself and says so, so there is nothing to gain by
+            // taking it. Add a line here if you ever buy a domain name.
+            //
+            // Be clear about what this is: a lock on the INSIDE of the door.
+            // Somebody who opens this file and reads it can delete the check.
+            // It stops the copy-and-upload case, which is the one that
+            // actually happens; it is not a wall against someone determined.
+            // The real wall is Firebase App Check - more setup, and free only
+            // up to about 10,000 token refreshes a month.
+            allowedHosts: [
+                'djaschmitz07-maker.github.io',
+                'localhost',
+                '127.0.0.1'
+            ],
+
             path: 'scores',       // where the scores live inside the database
             top: 50,              // how many rows the board shows
             readTimeout: 5000,    // give up on a read after 5s, use the cache
@@ -1308,8 +1326,20 @@
         // =========================================================
         // TALKING TO THE DATABASE
         // =========================================================
+        // Is this copy of the game running where it is allowed to run?
+        // Takes the host as an argument purely so it can be tested without
+        // having to actually host the page somewhere - a check you cannot
+        // run is a check you are trusting rather than one that works.
+        function siteIsAllowed(host) {
+            const where = (host !== undefined ? host : location.hostname).toLowerCase();
+            // A file opened straight off a desktop has no hostname at all.
+            if (!where) return false;
+            return CLOUD.allowedHosts.some(h => where === h.toLowerCase());
+        }
+
         function cloudIsOn() {
-            return !!(CLOUD.dbUrl && CLOUD.dbUrl.trim());
+            if (!CLOUD.dbUrl || !CLOUD.dbUrl.trim()) return false;
+            return siteIsAllowed();
         }
 
         function dbBase() {
@@ -1351,7 +1381,14 @@
         // sortEntries runs over them here rather than trusting the response.
         async function fetchGlobalLeaderboard(force = false) {
             if (!cloudIsOn()) {
-                setSyncStatus('Local scores only - no database connected', false);
+                // Say which of the two it is. "It isn't saving" with no reason
+                // is the thing that cost days on the last leaderboard.
+                setSyncStatus(
+                    siteIsAllowed()
+                        ? 'Local scores only - no database connected'
+                        : 'Unofficial copy - scores are not saved. Play at ' + CLOUD.allowedHosts[0],
+                    false
+                );
                 return leaderboardData;
             }
             if (inFlightRead) return inFlightRead;
