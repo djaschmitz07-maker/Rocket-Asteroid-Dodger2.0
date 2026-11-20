@@ -1079,22 +1079,25 @@
     </div>
 
     <canvas id="gameCanvas"></canvas>
-
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
         // =========================================================
-        // ZERO-CONFIG LIVE CLOUD LEADERBOARD (Shared Across All Devices)
-        // Uses public CORS-enabled cloud storage keyed specifically to
-        // TD Gaming's Astro Dodge 2.0 board so all phones & PCs share it
-        // immediately with zero setup required.
+        // CORS-SAFE MULTI-DEVICE LIVE CLOUD LEADERBOARD
+        // Uses CORS-friendly endpoints with simple 'text/plain' POSTs
+        // (avoids browser preflight OPTIONS rejection on GitHub Pages)
+        // plus automatic read/merge/write across all phones & computers.
         // =========================================================
         const CLOUD_SYNC_CONFIG = {
-            boardKey: 'tdgames_djaschmitz07_astrododge_v2_top50_global_2026',
-            // Primary zero-auth CORS JSON storage endpoint + backup mirror
-            primaryUrl: 'https://aisenseapi.com/services/v1/storage/tdgames_djaschmitz07_astrododge_v2_top50_global_2026',
-            backupUrl: 'https://kvdb.io/8vQ4xP9mR2wK7nL3zY6cT1/astrododge_v2_top50'
+            // Primary: Pantry / KVDB simple CORS-enabled key-value storage
+            endpoints: [
+                'https://kvdb.io/8vQ4xP9mR2wK7nL3zY6cT1/tdgames_astrododge_v2_top50_live',
+                'https://kvdb.io/4mN9pL2vX7qR5wK8zJ3tB6/tdgames_astrododge_v2_top50_backup'
+            ],
+            // Optional: Paste a Firebase Realtime Database URL (e.g. https://your-app-default-rtdb.firebaseio.com/top50.json)
+            // for dedicated private database persistence if desired:
+            customDatabaseUrl: ''
         };
 
         // UI Elements
@@ -1228,18 +1231,26 @@
         updateTopSiteRecordHUD();
 
         // =========================================================
-        // MULTI-DEVICE LIVE CLOUD SYNC (Works Immediately on GitHub Pages)
+        // CORS-SAFE CLOUD SYNC HELPERS (Zero Preflight Block)
         // =========================================================
+        function getAllSyncUrls() {
+            const urls = [];
+            if (CLOUD_SYNC_CONFIG.customDatabaseUrl && CLOUD_SYNC_CONFIG.customDatabaseUrl.trim()) {
+                urls.push(CLOUD_SYNC_CONFIG.customDatabaseUrl.trim());
+            }
+            urls.push(...CLOUD_SYNC_CONFIG.endpoints);
+            return urls;
+        }
+
         async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
-                const response = await fetch(url, {
+                return await fetch(url, {
                     ...options,
                     signal: controller.signal,
                     cache: 'no-store'
                 });
-                return response;
             } finally {
                 clearTimeout(timer);
             }
@@ -1249,100 +1260,99 @@
             lbSyncStatus.textContent = 'Syncing Global Scores...';
             lbSyncStatus.classList.remove('live');
 
-            // 1. Try Primary Cloud Endpoint (with cache-busting query string)
-            try {
-                const cacheBustUrl = `${CLOUD_SYNC_CONFIG.primaryUrl}?t=${Date.now()}`;
-                const res = await fetchWithTimeout(cacheBustUrl, { method: 'GET' });
-                if (res.ok) {
-                    const data = await res.json();
-                    const remoteEntries = Array.isArray(data) ? data : (data && data.entries);
-                    if (Array.isArray(remoteEntries) && remoteEntries.length > 0) {
-                        const merged = mergeLeaderboards(leaderboardData, remoteEntries);
-                        saveLocalLeaderboard(merged);
-                        // If local had newer scores not yet in cloud, push the merged board back up
-                        if (merged.length > remoteEntries.length || JSON.stringify(merged) !== JSON.stringify(normalizeEntryList(remoteEntries))) {
-                            pushGlobalLeaderboard(merged);
+            const urls = getAllSyncUrls();
+            let syncedFromCloud = false;
+            let combinedRemote = [];
+
+            for (const baseUrl of urls) {
+                try {
+                    const sep = baseUrl.includes('?') ? '&' : '?';
+                    const res = await fetchWithTimeout(`${baseUrl}${sep}t=${Date.now()}`, {
+                        method: 'GET'
+                    });
+                    if (res.ok) {
+                        const text = await res.text();
+                        if (text && text.trim()) {
+                            const data = JSON.parse(text);
+                            const list = Array.isArray(data) ? data : (data && data.entries);
+                            if (Array.isArray(list) && list.length > 0) {
+                                combinedRemote = mergeLeaderboards(combinedRemote, list);
+                                syncedFromCloud = true;
+                            }
                         }
-                        lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                        lbSyncStatus.classList.add('live');
-                        return leaderboardData;
+                    } else if (res.status === 404) {
+                        // Seed this endpoint with initial data on first visit
+                        await pushToSingleEndpoint(baseUrl, leaderboardData);
+                        syncedFromCloud = true;
                     }
-                } else if (res.status === 404) {
-                    // Initialize cloud storage with the seeded Top 50 list
-                    await pushGlobalLeaderboard(leaderboardData);
-                    lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                    lbSyncStatus.classList.add('live');
-                    return leaderboardData;
+                } catch (err) {
+                    // Try next endpoint
                 }
-            } catch (err) {
-                // Fall through to backup endpoint
             }
 
-            // 2. Try Backup Cloud Endpoint
-            try {
-                const backupBustUrl = `${CLOUD_SYNC_CONFIG.backupUrl}?t=${Date.now()}`;
-                const resBackup = await fetchWithTimeout(backupBustUrl, { method: 'GET' });
-                if (resBackup.ok) {
-                    const data = await resBackup.json();
-                    const remoteEntries = Array.isArray(data) ? data : (data && data.entries);
-                    if (Array.isArray(remoteEntries) && remoteEntries.length > 0) {
-                        const merged = mergeLeaderboards(leaderboardData, remoteEntries);
-                        saveLocalLeaderboard(merged);
-                        lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                        lbSyncStatus.classList.add('live');
-                        return leaderboardData;
-                    }
-                } else if (resBackup.status === 404) {
-                    await pushGlobalLeaderboard(leaderboardData);
-                    lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                    lbSyncStatus.classList.add('live');
-                    return leaderboardData;
+            if (syncedFromCloud && combinedRemote.length > 0) {
+                const merged = mergeLeaderboards(leaderboardData, combinedRemote);
+                const hadLocalOnlyScores = merged.length > combinedRemote.length ||
+                    merged.some((item, idx) => !combinedRemote[idx] || item.id !== combinedRemote[idx].id);
+
+                saveLocalLeaderboard(merged);
+
+                // If this device had any unsynced scores, push merged board back to all endpoints
+                if (hadLocalOnlyScores) {
+                    await pushGlobalLeaderboard(merged);
                 }
-            } catch (err) {
-                // Offline fallback
+
+                lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
+                lbSyncStatus.classList.add('live');
+                return leaderboardData;
             }
 
-            lbSyncStatus.textContent = 'Cached Standings • Reconnecting on Next Sync';
+            lbSyncStatus.textContent = 'Cached Standings • Will Retry Sync';
             lbSyncStatus.classList.remove('live');
             return leaderboardData;
+        }
+
+        async function pushToSingleEndpoint(baseUrl, normalizedEntries) {
+            const payload = JSON.stringify({
+                updatedAt: Date.now(),
+                entries: normalizedEntries
+            });
+
+            // Use Firebase RTDB PUT if custom Firebase URL is configured, otherwise simple CORS POST
+            const isFirebaseRtdb = baseUrl.includes('firebaseio.com') || baseUrl.includes('firebasedatabase.app');
+            const method = isFirebaseRtdb ? 'PUT' : 'POST';
+
+            // Using 'text/plain;charset=UTF-8' prevents browser CORS preflight OPTIONS blocks
+            // while still sending valid JSON text in the request body!
+            const res = await fetchWithTimeout(baseUrl, {
+                method,
+                headers: {
+                    'Content-Type': 'text/plain;charset=UTF-8'
+                },
+                body: payload
+            });
+            return res.ok;
         }
 
         async function pushGlobalLeaderboard(entries) {
             const normalized = normalizeEntryList(entries);
             saveLocalLeaderboard(normalized);
 
-            const payload = JSON.stringify({
-                updatedAt: Date.now(),
-                entries: normalized
-            });
+            const urls = getAllSyncUrls();
+            let anySuccess = false;
 
-            let syncedAny = false;
+            await Promise.all(urls.map(async (baseUrl) => {
+                try {
+                    const ok = await pushToSingleEndpoint(baseUrl, normalized);
+                    if (ok) anySuccess = true;
+                } catch (e) {}
+            }));
 
-            // Write to Primary Cloud Endpoint
-            try {
-                const res = await fetchWithTimeout(CLOUD_SYNC_CONFIG.primaryUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: payload
-                });
-                if (res.ok) syncedAny = true;
-            } catch (e) {}
-
-            // Write to Backup Cloud Endpoint in parallel
-            try {
-                const resBackup = await fetchWithTimeout(CLOUD_SYNC_CONFIG.backupUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: payload
-                });
-                if (resBackup.ok) syncedAny = true;
-            } catch (e) {}
-
-            if (syncedAny) {
+            if (anySuccess) {
                 lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
                 lbSyncStatus.classList.add('live');
             }
-            return syncedAny;
+            return anySuccess;
         }
 
         // Check if a run's score qualifies for Top 50
@@ -1588,7 +1598,7 @@
             }
         });
 
-        // Automatic background refresh whenever tab regains focus so all devices stay up to date
+        // Automatic silent background refresh whenever tab regains focus so all devices stay up to date
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
                 fetchGlobalLeaderboard().then(() => {
@@ -1599,7 +1609,7 @@
             }
         });
 
-        // Periodic silent background sync every 20 seconds when not actively flying
+        // Periodic silent background sync every 15 seconds when not actively flying
         setInterval(() => {
             if (gameState !== 'PLAYING' && !isSubmittingScore) {
                 fetchGlobalLeaderboard().then(() => {
@@ -1608,7 +1618,7 @@
                     }
                 });
             }
-        }, 20000);
+        }, 15000);
 
         // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
         let width = canvas.width = window.innerWidth;
@@ -2222,7 +2232,7 @@
                 bestDisplay.textContent = bestScore;
             }
 
-            // Silently sync the latest global leaderboard right when the player dies
+            // Silently refresh the latest global leaderboard right when the player dies
             // so the Top #1 HUD & qualification check are completely fresh without visible page reload
             const syncPromise = fetchGlobalLeaderboard();
 
