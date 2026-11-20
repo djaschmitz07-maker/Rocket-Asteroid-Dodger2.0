@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rocket Asteroid Dodger</title>
+    <title>Rocket Asteroid Dodger 2.0</title>
     <style>
         * {
             box-sizing: border-box;
@@ -618,8 +618,8 @@
             </svg>
         </a>
 
-        <div class="menu-badge" id="menuBadge">TD Gaming Arcade</div>
-        <h1 id="overlayTitle">Astro Dodge</h1>
+        <div class="menu-badge" id="menuBadge">TD Gaming Arcade • v2.0</div>
+        <h1 id="overlayTitle">Astro Dodge 2.0</h1>
         <div id="finalScoreBox">
             <span class="stat-label">Final Score</span>
             <div id="finalScoreVal">0</div>
@@ -640,7 +640,7 @@
     <!-- Cosmetics Modal -->
     <div id="cosmeticsOverlay">
         <div class="cosmetics-header">
-            <div class="cosmetics-title">Cosmetics</div>
+            <div class="cosmetics-title">Cosmetics 2.0</div>
             <div class="cosmetics-sub" id="cosmeticsBestInfo">Best Score: 0 — Beat high scores to unlock new skins!</div>
         </div>
 
@@ -685,12 +685,18 @@
         const countdownOverlay = document.getElementById('countdownOverlay');
         const countdownText = document.getElementById('countdownText');
 
+        // Isolated 2.0 Storage Keys (Fresh save profile separate from original v1.0)
+        const STORAGE_KEYS = {
+            bestScore: 'astroDodge_v2_bestScore',
+            equippedSkin: 'astroDodge_v2_equippedRocketSkin'
+        };
+
         // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
         let gameState = 'START';
         let score = 0;
-        let bestScore = parseInt(localStorage.getItem('rocketDodgeBest') || '0', 10);
+        let bestScore = parseInt(localStorage.getItem(STORAGE_KEYS.bestScore) || '0', 10);
         bestDisplay.textContent = bestScore;
 
         // Rocket Hull Skins Definition
@@ -820,6 +826,18 @@
                 tipColor: '#fbbf24',
                 stripeColor: '#fde047',
                 nozzleColor: '#92400e'
+            },
+            {
+                id: 'green_camo',
+                name: 'Green Camo',
+                reqScore: 251,
+                reqLabel: 'Past 250',
+                greenCamo: true,
+                hideStripe: true,
+                stops: ['#052e16', '#166534', '#14532d', '#02170b'],
+                finColor: '#0c3b1e',
+                centerFinColor: '#052411',
+                nozzleColor: '#09150e'
             }
         ];
 
@@ -834,7 +852,20 @@
             { x: 0.12,  y: 0.26,  rx: 0.22, ry: 0.13, rot: -0.4, color: 'rgba(126, 34, 206, 0.85)' }
         ];
 
-        let equippedRocketSkinId = localStorage.getItem('rocketDodgeEquippedSkin') || 'classic';
+        // Blended dark green, medium green, light green & black-tinted camo patches across the entire body & tip (past 250)
+        const GREEN_CAMO_PATCHES = [
+            { x: 0.0,   y: -0.42, rx: 0.22, ry: 0.15, rot: 0.2,  color: 'rgba(20, 83, 45, 0.92)' },
+            { x: -0.12, y: -0.32, rx: 0.20, ry: 0.14, rot: -0.35, color: 'rgba(74, 222, 128, 0.42)' },
+            { x: 0.14,  y: -0.26, rx: 0.22, ry: 0.16, rot: 0.45, color: 'rgba(10, 22, 14, 0.82)' },
+            { x: -0.18, y: -0.14, rx: 0.26, ry: 0.17, rot: 0.3,  color: 'rgba(22, 163, 74, 0.65)' },
+            { x: 0.15,  y: -0.04, rx: 0.25, ry: 0.18, rot: -0.4, color: 'rgba(134, 239, 172, 0.38)' },
+            { x: -0.14, y: 0.08,  rx: 0.27, ry: 0.17, rot: -0.25, color: 'rgba(9, 20, 13, 0.85)' },
+            { x: 0.18,  y: 0.16,  rx: 0.24, ry: 0.16, rot: 0.55, color: 'rgba(21, 128, 61, 0.78)' },
+            { x: -0.16, y: 0.25,  rx: 0.25, ry: 0.15, rot: 0.4,  color: 'rgba(74, 222, 128, 0.36)' },
+            { x: 0.12,  y: 0.30,  rx: 0.26, ry: 0.15, rot: -0.3, color: 'rgba(12, 26, 17, 0.85)' }
+        ];
+
+        let equippedRocketSkinId = localStorage.getItem(STORAGE_KEYS.equippedSkin) || 'classic';
         let activeCosmeticTab = 'rocket';
 
         function getEquippedRocketSkin() {
@@ -845,7 +876,7 @@
 
         // Render Cosmetics Tab Content
         function renderCosmeticsPanel() {
-            cosmeticsBestInfo.textContent = `Best Score: ${bestScore} — Beat high scores to unlock new skins!`;
+            cosmeticsBestInfo.textContent = `2.0 Best Score: ${bestScore} — Beat high scores to unlock new skins!`;
 
             if (activeCosmeticTab === 'rocket') {
                 const currentSkin = getEquippedRocketSkin();
@@ -862,6 +893,8 @@
                         swatchBg = 'radial-gradient(circle at 30% 30%, #f9a8d4, #ec4899 45%, #7e22ce 90%)';
                     } else if (skin.shinyGold) {
                         swatchBg = 'linear-gradient(135deg, #fef9c3 0%, #facc15 35%, #d97706 70%, #fef08a 100%)';
+                    } else if (skin.greenCamo) {
+                        swatchBg = 'radial-gradient(circle at 30% 30%, #4ade80, #15803d 48%, #052e16 80%, #090d0b 100%)';
                     }
 
                     html += `
@@ -882,7 +915,7 @@
                     card.addEventListener('click', () => {
                         const id = card.getAttribute('data-skin-id');
                         equippedRocketSkinId = id;
-                        localStorage.setItem('rocketDodgeEquippedSkin', id);
+                        localStorage.setItem(STORAGE_KEYS.equippedSkin, id);
                         renderCosmeticsPanel();
                     });
                 });
@@ -1264,7 +1297,7 @@
 
             if (score > bestScore) {
                 bestScore = score;
-                localStorage.setItem('rocketDodgeBest', bestScore);
+                localStorage.setItem(STORAGE_KEYS.bestScore, bestScore);
                 bestDisplay.textContent = bestScore;
             }
 
@@ -1299,11 +1332,11 @@
             const activeSkin = getEquippedRocketSkin();
             const isFullBody = Boolean(activeSkin.fullBody);
 
-            const finFill = isFullBody ? activeSkin.finColor : '#ef4444';
-            const centerFinFill = isFullBody ? activeSkin.centerFinColor : '#dc2626';
+            const finFill = activeSkin.finColor || '#ef4444';
+            const centerFinFill = activeSkin.centerFinColor || '#dc2626';
             const tipFill = isFullBody ? activeSkin.tipColor : '#ef4444';
             const stripeFill = isFullBody ? activeSkin.stripeColor : '#3b82f6';
-            const nozzleFill = isFullBody ? activeSkin.nozzleColor : '#334155';
+            const nozzleFill = activeSkin.nozzleColor || '#334155';
 
             ctx.save();
             ctx.translate(rocket.x, rocket.y);
@@ -1355,6 +1388,24 @@
             ctx.closePath();
             ctx.fill();
 
+            // Subtle black-tinted camo depth on fins for Green Camo
+            if (activeSkin.greenCamo) {
+                ctx.fillStyle = 'rgba(5, 12, 8, 0.42)';
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.32, h * 0.22);
+                ctx.lineTo(-w * 0.72, h * 0.44);
+                ctx.lineTo(-w * 0.32, h * 0.36);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(w * 0.32, h * 0.22);
+                ctx.lineTo(w * 0.72, h * 0.44);
+                ctx.lineTo(w * 0.32, h * 0.36);
+                ctx.closePath();
+                ctx.fill();
+            }
+
             // Metallic sheen highlight on fins for Shiny Gold
             if (activeSkin.shinyGold) {
                 ctx.fillStyle = 'rgba(254, 249, 195, 0.55)';
@@ -1403,7 +1454,7 @@
             traceFuselagePath(w, h);
             ctx.fill();
 
-            // Clipped Fuselage Details (Blended Nebula Shapes, Nose Tip, Rear Stripe, Gold Sheen)
+            // Clipped Fuselage Details (Blended Shapes, Nose Tip, Rear Stripe, Gold Sheen)
             ctx.save();
             traceFuselagePath(w, h);
             ctx.clip();
@@ -1425,15 +1476,43 @@
                 ctx.restore();
             }
 
-            // Nose Cone Tip & Accent Stripe
-            ctx.fillStyle = tipFill;
-            ctx.fillRect(-w, -h * 0.55, w * 2, h * 0.22);
-            ctx.fillStyle = stripeFill;
-            ctx.fillRect(-w, h * 0.26, w * 2, h * 0.06);
+            // Blended dark green, medium green & light green camo across the entire body & tip (past 250)
+            if (activeSkin.greenCamo) {
+                ctx.save();
+                ctx.filter = 'blur(3px)';
+                GREEN_CAMO_PATCHES.forEach(p => {
+                    ctx.save();
+                    ctx.translate(p.x * w, p.y * h);
+                    ctx.rotate(p.rot);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, p.rx * w, p.ry * h, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+                ctx.restore();
+
+                // Subtle overall black tactical tint so the camo blends seamlessly as one unified hull
+                const blackTintGrad = ctx.createLinearGradient(-w * 0.45, -h * 0.5, w * 0.45, h * 0.4);
+                blackTintGrad.addColorStop(0, 'rgba(3, 8, 5, 0.36)');
+                blackTintGrad.addColorStop(0.45, 'rgba(3, 8, 5, 0.16)');
+                blackTintGrad.addColorStop(1, 'rgba(3, 8, 5, 0.44)');
+                ctx.fillStyle = blackTintGrad;
+                ctx.fillRect(-w, -h * 0.6, w * 2, h * 1.2);
+            } else {
+                // Nose Cone Tip (Omitted on greenCamo so the camo fades smoothly into the tip as one body)
+                ctx.fillStyle = tipFill;
+                ctx.fillRect(-w, -h * 0.55, w * 2, h * 0.22);
+            }
+
+            // Accent Rear Stripe
+            if (!activeSkin.hideStripe) {
+                ctx.fillStyle = stripeFill;
+                ctx.fillRect(-w, h * 0.26, w * 2, h * 0.06);
+            }
 
             // Specular metallic sheen texture & moving shimmer across the entire Shiny Gold rocket (200+)
             if (activeSkin.shinyGold) {
-                // Vertical bright gold specular reflection bar
                 const specGrad = ctx.createLinearGradient(-w * 0.35, 0, w * 0.35, 0);
                 specGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
                 specGrad.addColorStop(0.28, 'rgba(254, 249, 195, 0.65)');
@@ -1443,7 +1522,6 @@
                 ctx.fillStyle = specGrad;
                 ctx.fillRect(-w, -h * 0.6, w * 2, h * 1.2);
 
-                // Animated diagonal glint sweep
                 const shimmerY = ((performance.now() * 0.05) % (h * 1.6)) - h * 0.8;
                 ctx.save();
                 ctx.translate(0, shimmerY);
@@ -1459,11 +1537,16 @@
 
             ctx.restore();
 
-            // Subtle outline on dark black skins so they stand out crisply against space
+            // Subtle outline on dark skins so they stand out crisply against space
             if (activeSkin.id === 'black' || activeSkin.id === 'full_black') {
                 traceFuselagePath(w, h);
                 ctx.lineWidth = 1.5;
                 ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+                ctx.stroke();
+            } else if (activeSkin.greenCamo) {
+                traceFuselagePath(w, h);
+                ctx.lineWidth = 1.3;
+                ctx.strokeStyle = 'rgba(74, 222, 128, 0.32)';
                 ctx.stroke();
             } else if (activeSkin.shinyGold) {
                 traceFuselagePath(w, h);
@@ -1484,7 +1567,7 @@
             ctx.fill();
 
             ctx.lineWidth = 2.5;
-            ctx.strokeStyle = activeSkin.shinyGold ? '#b45309' : (activeSkin.id === 'copper' ? '#7c3f1d' : '#475569');
+            ctx.strokeStyle = activeSkin.shinyGold ? '#b45309' : (activeSkin.id === 'copper' ? '#7c3f1d' : (activeSkin.greenCamo ? '#052e16' : '#475569'));
             ctx.stroke();
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
