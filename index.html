@@ -61,6 +61,14 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
         }
 
+        .stat-box.world-best {
+            border-color: rgba(251, 191, 36, 0.45);
+        }
+
+        .stat-box.world-best #worldBestDisplay {
+            color: #fbbf24;
+        }
+
         .stat-label {
             color: #94a3b8;
             font-size: 0.75rem;
@@ -277,14 +285,15 @@
             transform: translateY(1px) scale(0.98);
         }
 
-        /* Cosmetics Button underneath Play */
-        #cosmeticsBtn {
-            margin-top: 18px;
+        /* Secondary Menu Buttons (Cosmetics & Leaderboard) */
+        .menu-sub-btn {
+            margin-top: 14px;
             background: rgba(15, 23, 42, 0.78);
             color: #e2e8f0;
             border: 1.5px solid rgba(56, 189, 248, 0.45);
             padding: 11px 30px;
-            font-size: 0.98rem;
+            min-width: 190px;
+            font-size: 0.96rem;
             font-weight: 700;
             letter-spacing: 1.5px;
             border-radius: 999px;
@@ -294,15 +303,26 @@
             transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
         }
 
-        #cosmeticsBtn:hover {
+        .menu-sub-btn:hover {
             background: rgba(30, 41, 59, 0.95);
             border-color: #38bdf8;
             color: #ffffff;
             transform: translateY(-2px) scale(1.03);
         }
 
-        #cosmeticsBtn:active {
+        .menu-sub-btn:active {
             transform: scale(0.97);
+        }
+
+        #leaderboardBtn {
+            margin-top: 10px;
+            border-color: rgba(251, 191, 36, 0.5);
+            color: #fef3c7;
+        }
+
+        #leaderboardBtn:hover {
+            border-color: #fbbf24;
+            color: #ffffff;
         }
 
         #finalScoreBox {
@@ -458,12 +478,13 @@
             touch-action: pan-y;
         }
 
-        /* Custom subtle scrollbar */
-        .cosmetics-panel::-webkit-scrollbar {
+        .cosmetics-panel::-webkit-scrollbar,
+        .lb-list::-webkit-scrollbar {
             width: 6px;
         }
-        .cosmetics-panel::-webkit-scrollbar-thumb {
-            background: rgba(99, 102, 241, 0.5);
+        .cosmetics-panel::-webkit-scrollbar-thumb,
+        .lb-list::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.55);
             border-radius: 999px;
         }
 
@@ -578,6 +599,329 @@
             border-color: #38bdf8;
             transform: scale(1.04);
         }
+
+        /* =========================================================
+           TOP 50 LEADERBOARD MODAL & NAME ENTRY PROMPT
+           ========================================================= */
+        #leaderboardOverlay,
+        #nameEntryOverlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 8, 17, 0.84);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 40;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.24s ease;
+        }
+
+        #leaderboardOverlay.active,
+        #nameEntryOverlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #nameEntryOverlay {
+            z-index: 45;
+        }
+
+        .lb-modal {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            max-height: 82vh;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(9, 14, 28, 0.98) 100%);
+            border: 1.5px solid rgba(251, 191, 36, 0.45);
+            border-radius: 24px;
+            padding: 22px 20px 18px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(251, 191, 36, 0.15);
+        }
+
+        .lb-close-x {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #cbd5e1;
+            font-size: 1.2rem;
+            font-weight: 800;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+        }
+
+        .lb-close-x:hover {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #f87171;
+            transform: scale(1.06);
+        }
+
+        .lb-header {
+            text-align: center;
+            margin-bottom: 14px;
+            padding: 0 36px;
+        }
+
+        .lb-title {
+            font-size: 1.75rem;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #fde047, #f59e0b, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .lb-subtitle {
+            color: #94a3b8;
+            font-size: 0.84rem;
+            margin-top: 3px;
+        }
+
+        .lb-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+            touch-action: pan-y;
+        }
+
+        .lb-list * {
+            touch-action: pan-y;
+        }
+
+        .lb-empty {
+            text-align: center;
+            padding: 44px 16px;
+            color: #94a3b8;
+            font-size: 1rem;
+            font-weight: 600;
+            border: 1px dashed rgba(148, 163, 184, 0.25);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        /* Bracketed Row Layout: [ #Rank   Name          Score ] */
+        .lb-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 11px 14px;
+            border-radius: 14px;
+            background: rgba(30, 41, 59, 0.65);
+            border: 1.5px solid rgba(148, 163, 184, 0.22);
+            position: relative;
+        }
+
+        .lb-row::before,
+        .lb-row::after {
+            font-weight: 900;
+            font-size: 1.15rem;
+            color: rgba(148, 163, 184, 0.45);
+        }
+
+        .lb-row::before {
+            content: '[';
+            margin-right: 8px;
+        }
+
+        .lb-row::after {
+            content: ']';
+            margin-left: 8px;
+        }
+
+        .lb-row.rank-1 {
+            background: linear-gradient(90deg, rgba(251, 191, 36, 0.22), rgba(30, 41, 59, 0.8));
+            border-color: rgba(251, 191, 36, 0.65);
+        }
+        .lb-row.rank-1::before,
+        .lb-row.rank-1::after,
+        .lb-row.rank-1 .lb-rank {
+            color: #fbbf24;
+        }
+
+        .lb-row.rank-2 {
+            background: linear-gradient(90deg, rgba(226, 232, 240, 0.18), rgba(30, 41, 59, 0.8));
+            border-color: rgba(203, 213, 225, 0.55);
+        }
+        .lb-row.rank-2::before,
+        .lb-row.rank-2::after,
+        .lb-row.rank-2 .lb-rank {
+            color: #e2e8f0;
+        }
+
+        .lb-row.rank-3 {
+            background: linear-gradient(90deg, rgba(217, 119, 6, 0.2), rgba(30, 41, 59, 0.8));
+            border-color: rgba(217, 119, 6, 0.55);
+        }
+        .lb-row.rank-3::before,
+        .lb-row.rank-3::after,
+        .lb-row.rank-3 .lb-rank {
+            color: #f59e0b;
+        }
+
+        .lb-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .lb-rank {
+            font-size: 0.92rem;
+            font-weight: 900;
+            color: #38bdf8;
+            min-width: 38px;
+            text-align: left;
+        }
+
+        .lb-name {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #f8fafc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .lb-score {
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: #38bdf8;
+            margin-left: 12px;
+        }
+
+        .lb-row.rank-1 .lb-score {
+            color: #fde047;
+        }
+
+        /* Top 50 Name Entry Modal */
+        .entry-modal {
+            width: 100%;
+            max-width: 400px;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.97) 0%, rgba(10, 15, 30, 0.99) 100%);
+            border: 1.5px solid rgba(56, 189, 248, 0.55);
+            border-radius: 24px;
+            padding: 24px 22px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.22);
+        }
+
+        .entry-badge {
+            display: inline-block;
+            font-size: 0.76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #fde047;
+            background: rgba(251, 191, 36, 0.15);
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            padding: 5px 14px;
+            border-radius: 999px;
+            margin-bottom: 10px;
+        }
+
+        .entry-title {
+            font-size: 1.65rem;
+            font-weight: 900;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }
+
+        .entry-score-pill {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #38bdf8;
+            margin-bottom: 16px;
+        }
+
+        .entry-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .field-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 5px;
+        }
+
+        .field-group input {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.85);
+            border: 1.5px solid rgba(148, 163, 184, 0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #ffffff;
+            outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+            touch-action: manipulation;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .field-group input:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+        }
+
+        .entry-error {
+            min-height: 20px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #f87171;
+            margin-bottom: 12px;
+        }
+
+        .entry-submit-check {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #ffffff;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(34, 197, 94, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.35);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .entry-submit-check:hover {
+            transform: scale(1.08);
+            box-shadow: 0 12px 30px rgba(34, 197, 94, 0.65);
+        }
+
+        .entry-submit-check:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -588,6 +932,10 @@
             <span id="scoreDisplay">0</span>
         </div>
         <div class="hud-right">
+            <div class="stat-box world-best" title="Highest Score on the Website">
+                <span class="stat-label">Top #1</span>
+                <span id="worldBestDisplay">466</span>
+            </div>
             <div class="stat-box">
                 <span class="stat-label">Best</span>
                 <span id="bestDisplay">0</span>
@@ -634,7 +982,8 @@
             <div class="zone-pill">Hold Right Half ▶</div>
         </div>
         <button class="action-btn play-hero" id="startBtn">Play</button>
-        <button id="cosmeticsBtn">Cosmetics</button>
+        <button class="menu-sub-btn" id="cosmeticsBtn">Cosmetics</button>
+        <button class="menu-sub-btn" id="leaderboardBtn">Leaderboard</button>
     </div>
 
     <!-- Cosmetics Modal -->
@@ -655,6 +1004,52 @@
         <button id="closeCosmeticsBtn">Back</button>
     </div>
 
+    <!-- Top 50 Leaderboard Modal -->
+    <div id="leaderboardOverlay">
+        <div class="lb-modal" id="lbModalBox">
+            <button class="lb-close-x" id="closeLeaderboardBtn" aria-label="Close Leaderboard">✕</button>
+            <div class="lb-header">
+                <div class="lb-title">Top 50 Leaderboard</div>
+                <div class="lb-subtitle" id="lbRecordSubtitle">Highest Score on Site: 466</div>
+            </div>
+            <div class="lb-list" id="lbListContainer"></div>
+        </div>
+    </div>
+
+    <!-- Top 50 Name Entry Modal -->
+    <div id="nameEntryOverlay">
+        <div class="entry-modal">
+            <div class="entry-badge" id="entryRankBadge">Top 50 Score!</div>
+            <div class="entry-title">New High Score</div>
+            <div class="entry-score-pill" id="entryScoreDisplay">Score: 0</div>
+
+            <div class="entry-fields">
+                <div class="field-group">
+                    <label for="firstNameInput">
+                        <span>First Name *</span>
+                        <span>Max 10 • No spaces</span>
+                    </label>
+                    <input type="text" id="firstNameInput" maxlength="10" placeholder="Required" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="field-group">
+                    <label for="lastNameInput">
+                        <span>Last Name (Optional)</span>
+                        <span>Max 10 • No spaces</span>
+                    </label>
+                    <input type="text" id="lastNameInput" maxlength="10" placeholder="Optional" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+
+            <div class="entry-error" id="entryErrorMsg"></div>
+
+            <button class="entry-submit-check" id="submitScoreBtn" aria-label="Submit Score" title="Submit Score">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </button>
+        </div>
+    </div>
+
     <canvas id="gameCanvas"></canvas>
 
     <script>
@@ -665,6 +1060,7 @@
         const scoreBox = document.getElementById('scoreBox');
         const scoreDisplay = document.getElementById('scoreDisplay');
         const bestDisplay = document.getElementById('bestDisplay');
+        const worldBestDisplay = document.getElementById('worldBestDisplay');
         const overlay = document.getElementById('overlay');
         const backMenuBtn = document.getElementById('backMenuBtn');
         const menuBadge = document.getElementById('menuBadge');
@@ -674,6 +1070,7 @@
         const finalScoreVal = document.getElementById('finalScoreVal');
         const startBtn = document.getElementById('startBtn');
         const cosmeticsBtn = document.getElementById('cosmeticsBtn');
+        const leaderboardBtn = document.getElementById('leaderboardBtn');
         const cosmeticsOverlay = document.getElementById('cosmeticsOverlay');
         const cosmeticsBestInfo = document.getElementById('cosmeticsBestInfo');
         const cosmeticsPanel = document.getElementById('cosmeticsPanel');
@@ -685,11 +1082,305 @@
         const countdownOverlay = document.getElementById('countdownOverlay');
         const countdownText = document.getElementById('countdownText');
 
+        // Leaderboard UI Elements
+        const leaderboardOverlay = document.getElementById('leaderboardOverlay');
+        const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
+        const lbListContainer = document.getElementById('lbListContainer');
+        const lbRecordSubtitle = document.getElementById('lbRecordSubtitle');
+        const nameEntryOverlay = document.getElementById('nameEntryOverlay');
+        const entryRankBadge = document.getElementById('entryRankBadge');
+        const entryScoreDisplay = document.getElementById('entryScoreDisplay');
+        const firstNameInput = document.getElementById('firstNameInput');
+        const lastNameInput = document.getElementById('lastNameInput');
+        const entryErrorMsg = document.getElementById('entryErrorMsg');
+        const submitScoreBtn = document.getElementById('submitScoreBtn');
+
         // Isolated 2.0 Storage Keys (Fresh save profile separate from original v1.0)
         const STORAGE_KEYS = {
             bestScore: 'astroDodge_v2_bestScore',
-            equippedSkin: 'astroDodge_v2_equippedRocketSkin'
+            equippedSkin: 'astroDodge_v2_equippedRocketSkin',
+            leaderboard: 'astroDodge_v2_top50Leaderboard'
         };
+
+        // Pre-populated Initial Leaderboard Scores (Sorted Highest to Lowest, Max 50)
+        const INITIAL_LEADERBOARD = [
+            { firstName: 'Dallin', lastName: '', score: 466 },
+            { firstName: 'Zack', lastName: '', score: 250 },
+            { firstName: 'Zack', lastName: '', score: 218 },
+            { firstName: 'Brenden', lastName: '', score: 160 },
+            { firstName: 'Rylan', lastName: '', score: 130 },
+            { firstName: 'Daniel', lastName: '', score: 118 },
+            { firstName: 'Zack', lastName: '', score: 117 },
+            { firstName: 'Dallin', lastName: '', score: 103 },
+            { firstName: 'Brenden', lastName: '', score: 102 },
+            { firstName: 'Zack', lastName: '', score: 93 },
+            { firstName: 'Timothy', lastName: '', score: 89 },
+            { firstName: 'Timothy', lastName: '', score: 87 },
+            { firstName: 'Dallin', lastName: '', score: 82 },
+            { firstName: 'Jada', lastName: '', score: 66 },
+            { firstName: 'Daniel', lastName: '', score: 66 },
+            { firstName: 'Melody', lastName: '', score: 49 },
+            { firstName: 'Brenden', lastName: '', score: 1 }
+        ];
+
+        // Load or Initialize Top 50 Leaderboard
+        function loadLeaderboard() {
+            const raw = localStorage.getItem(STORAGE_KEYS.leaderboard);
+            if (!raw) {
+                const seeded = [...INITIAL_LEADERBOARD]
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 50);
+                localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(seeded));
+                return seeded;
+            }
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.sort((a, b) => b.score - a.score).slice(0, 50);
+                }
+            } catch (e) {}
+            return [];
+        }
+
+        let leaderboardData = loadLeaderboard();
+
+        function saveLeaderboard() {
+            leaderboardData.sort((a, b) => b.score - a.score);
+            leaderboardData = leaderboardData.slice(0, 50);
+            localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(leaderboardData));
+            updateTopSiteRecordHUD();
+        }
+
+        function updateTopSiteRecordHUD() {
+            const topScore = leaderboardData.length > 0 ? leaderboardData[0].score : 0;
+            worldBestDisplay.textContent = topScore;
+            if (leaderboardData.length > 0) {
+                const leader = leaderboardData[0];
+                const fullName = leader.lastName ? `${leader.firstName} ${leader.lastName}` : leader.firstName;
+                lbRecordSubtitle.textContent = `Highest Score on Site: ${leader.score} (${fullName})`;
+            } else {
+                lbRecordSubtitle.textContent = 'Highest Score on Site: 0';
+            }
+        }
+
+        updateTopSiteRecordHUD();
+
+        // Check if a run's score qualifies for Top 50
+        function qualifiesForTop50(runScore) {
+            if (runScore <= 0) return false;
+            if (leaderboardData.length < 50) return true;
+            const lowestTop50Score = leaderboardData[leaderboardData.length - 1].score;
+            return runScore > lowestTop50Score;
+        }
+
+        function getProjectedRank(runScore) {
+            let rank = 1;
+            for (let i = 0; i < leaderboardData.length; i++) {
+                if (runScore > leaderboardData[i].score) break;
+                rank++;
+            }
+            return Math.min(rank, 50);
+        }
+
+        function formatOrdinalRank(n) {
+            const s = ['th', 'st', 'nd', 'rd'];
+            const v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        // =========================================================
+        // PROFANITY & INAPPROPRIATE WORD FILTER (With Leetspeak Normalization)
+        // =========================================================
+        const BLOCKED_TERMS = [
+            'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'dick', 'cock', 'pussy',
+            'cunt', 'whore', 'slut', 'fag', 'faggot', 'nigger', 'nigga', 'retard',
+            'retarded', 'nazi', 'hitler', 'rape', 'rapist', 'molest', 'pedo',
+            'pedophile', 'porn', 'penis', 'vagina', 'boob', 'tits', 'anal', 'anus',
+            'cum', 'jizz', 'dildo', 'blowjob', 'handjob', 'masturbate', 'sex',
+            'sexy', 'horny', 'naked', 'nude', 'kike', 'chink', 'spic', 'wetback',
+            'beaner', 'coon', 'twat', 'wanker', 'bollocks', 'prick', 'jackass',
+            'dumbass', 'motherfucker', 'bullshit', 'horseshit', 'shithead', 'dipshit',
+            'pissoff', 'piss', 'damn', 'hell', 'suckmy', 'killurself', 'kys',
+            'suicide', 'kkk', 'terrorist', 'isis'
+        ];
+
+        function normalizeForProfanityCheck(str) {
+            return str
+                .toLowerCase()
+                .replace(/0/g, 'o')
+                .replace(/1/g, 'i')
+                .replace(/!/g, 'i')
+                .replace(/3/g, 'e')
+                .replace(/4/g, 'a')
+                .replace(/@/g, 'a')
+                .replace(/5/g, 's')
+                .replace(/\$/g, 's')
+                .replace(/7/g, 't')
+                .replace(/8/g, 'b')
+                .replace(/9/g, 'g')
+                .replace(/[^a-z]/g, '');
+        }
+
+        function containsInappropriateLanguage(first, last) {
+            const normFirst = normalizeForProfanityCheck(first);
+            const normLast = normalizeForProfanityCheck(last);
+            const combined = normFirst + normLast;
+
+            for (const term of BLOCKED_TERMS) {
+                if (
+                    normFirst.includes(term) ||
+                    normLast.includes(term) ||
+                    combined.includes(term)
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Enforce max 10 characters and strip spaces immediately on input
+        function sanitizeNameInput(el) {
+            el.value = el.value.replace(/\s+/g, '').slice(0, 10);
+        }
+
+        firstNameInput.addEventListener('input', () => {
+            sanitizeNameInput(firstNameInput);
+            entryErrorMsg.textContent = '';
+        });
+
+        lastNameInput.addEventListener('input', () => {
+            sanitizeNameInput(lastNameInput);
+            entryErrorMsg.textContent = '';
+        });
+
+        let pendingLeaderboardScore = 0;
+
+        function openNameEntryModal(runScore) {
+            pendingLeaderboardScore = runScore;
+            const rank = getProjectedRank(runScore);
+            entryRankBadge.textContent = `Top 50 • ${formatOrdinalRank(rank)} Place!`;
+            entryScoreDisplay.textContent = `Score: ${runScore}`;
+            firstNameInput.value = '';
+            lastNameInput.value = '';
+            entryErrorMsg.textContent = '';
+            nameEntryOverlay.classList.add('active');
+            setTimeout(() => firstNameInput.focus(), 100);
+        }
+
+        function submitLeaderboardEntry() {
+            sanitizeNameInput(firstNameInput);
+            sanitizeNameInput(lastNameInput);
+
+            const fName = firstNameInput.value.trim();
+            const lName = lastNameInput.value.trim();
+
+            if (!fName) {
+                entryErrorMsg.textContent = 'Please enter your first name.';
+                firstNameInput.focus();
+                return;
+            }
+
+            if (fName.length > 10 || lName.length > 10) {
+                entryErrorMsg.textContent = 'Max 10 characters per name.';
+                return;
+            }
+
+            if (/\s/.test(fName) || /\s/.test(lName)) {
+                entryErrorMsg.textContent = 'Spaces are not allowed.';
+                return;
+            }
+
+            if (containsInappropriateLanguage(fName, lName)) {
+                entryErrorMsg.textContent = 'Inappropriate words are not allowed.';
+                return;
+            }
+
+            leaderboardData.push({
+                firstName: fName,
+                lastName: lName,
+                score: pendingLeaderboardScore
+            });
+
+            saveLeaderboard();
+            nameEntryOverlay.classList.remove('active');
+            renderLeaderboard();
+            leaderboardOverlay.classList.add('active');
+        }
+
+        submitScoreBtn.addEventListener('click', submitLeaderboardEntry);
+
+        firstNameInput.addEventListener('keydown', (e) => {
+            if (e.key === ' ') e.preventDefault();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                lastNameInput.focus();
+            }
+        });
+
+        lastNameInput.addEventListener('keydown', (e) => {
+            if (e.key === ' ') e.preventDefault();
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitLeaderboardEntry();
+            }
+        });
+
+        // Escape HTML helper for safe rendering
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Render Top 50 Leaderboard List
+        function renderLeaderboard() {
+            updateTopSiteRecordHUD();
+
+            if (leaderboardData.length === 0) {
+                lbListContainer.innerHTML = `<div class="lb-empty">No one on the leaderboard yet.<br>Be the first to set a Top 50 score!</div>`;
+                return;
+            }
+
+            let html = '';
+            leaderboardData.forEach((entry, index) => {
+                const rankNum = index + 1;
+                const rankClass = rankNum <= 3 ? `rank-${rankNum}` : '';
+                const rankLabel = formatOrdinalRank(rankNum);
+                const fullName = entry.lastName
+                    ? `${escapeHTML(entry.firstName)} ${escapeHTML(entry.lastName)}`
+                    : escapeHTML(entry.firstName);
+
+                html += `
+                    <div class="lb-row ${rankClass}">
+                        <div class="lb-left">
+                            <span class="lb-rank">${rankLabel}</span>
+                            <span class="lb-name">${fullName}</span>
+                        </div>
+                        <span class="lb-score">${entry.score}</span>
+                    </div>
+                `;
+            });
+            lbListContainer.innerHTML = html;
+        }
+
+        leaderboardBtn.addEventListener('click', () => {
+            renderLeaderboard();
+            leaderboardOverlay.classList.add('active');
+        });
+
+        closeLeaderboardBtn.addEventListener('click', () => {
+            leaderboardOverlay.classList.remove('active');
+        });
+
+        // Close Leaderboard when clicking outside the modal box
+        leaderboardOverlay.addEventListener('click', (e) => {
+            if (e.target === leaderboardOverlay) {
+                leaderboardOverlay.classList.remove('active');
+            }
+        });
 
         // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
         let width = canvas.width = window.innerWidth;
@@ -700,7 +1391,6 @@
         bestDisplay.textContent = bestScore;
 
         // Rocket Hull Skins Definition
-        // fullBody: true changes fuselage, nose tip, fins, and rear stripe (leaving only the glass cockpit window untouched)
         const ROCKET_SKINS = [
             {
                 id: 'classic',
@@ -1135,6 +1825,7 @@
         // Optional Keyboard Support (Arrow Keys / A & D / Escape to pause)
         const keysDown = {};
         window.addEventListener('keydown', (e) => {
+            if (nameEntryOverlay.classList.contains('active')) return;
             if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
                 if (gameState === 'PLAYING') pauseGame();
                 else if (gameState === 'PAUSED') startResumeCountdown();
@@ -1282,6 +1973,8 @@
             gameState = 'PLAYING';
             overlay.classList.add('hidden');
             cosmeticsOverlay.classList.remove('active');
+            leaderboardOverlay.classList.remove('active');
+            nameEntryOverlay.classList.remove('active');
             pauseOverlay.classList.add('hidden');
             countdownOverlay.classList.add('hidden');
             pauseBtn.style.display = 'flex';
@@ -1301,6 +1994,8 @@
                 bestDisplay.textContent = bestScore;
             }
 
+            const madeTop50 = qualifiesForTop50(score);
+
             setTimeout(() => {
                 menuBadge.style.display = 'none';
                 overlayTitle.textContent = 'Hull Breached!';
@@ -1310,6 +2005,10 @@
                 startBtn.textContent = 'Play Again';
                 startBtn.classList.remove('play-hero');
                 overlay.classList.remove('hidden');
+
+                if (madeTop50) {
+                    openNameEntryModal(score);
+                }
             }, 650);
         }
 
@@ -1492,7 +2191,6 @@
                 });
                 ctx.restore();
 
-                // Subtle overall black tactical tint so the camo blends seamlessly as one unified hull
                 const blackTintGrad = ctx.createLinearGradient(-w * 0.45, -h * 0.5, w * 0.45, h * 0.4);
                 blackTintGrad.addColorStop(0, 'rgba(3, 8, 5, 0.36)');
                 blackTintGrad.addColorStop(0.45, 'rgba(3, 8, 5, 0.16)');
@@ -1500,7 +2198,6 @@
                 ctx.fillStyle = blackTintGrad;
                 ctx.fillRect(-w, -h * 0.6, w * 2, h * 1.2);
             } else {
-                // Nose Cone Tip (Omitted on greenCamo so the camo fades smoothly into the tip as one body)
                 ctx.fillStyle = tipFill;
                 ctx.fillRect(-w, -h * 0.55, w * 2, h * 0.22);
             }
