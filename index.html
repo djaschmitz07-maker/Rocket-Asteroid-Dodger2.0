@@ -797,6 +797,27 @@
             color: #f59e0b;
         }
 
+        /* The row you have just saved, so you can see with your own eyes that it
+           landed on the real board and not only on this computer.
+
+           This HAS to sit after the rank-1/2/3 rules. It was above them first,
+           and since .lb-row.lb-you and .lb-row.rank-3 are the same strength the
+           later one wins - so the gold, silver and bronze colours painted over
+           the highlight and the one case that matters most, somebody who just
+           took a podium place, saw nothing. Measured in the page rather than
+           guessed: the border came back as rgba(217,119,6,.55), the bronze. */
+        .lb-row.lb-you {
+            border-color: #38bdf8;
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.28), rgba(30, 41, 59, 0.85));
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5), 0 0 20px rgba(56, 189, 248, 0.4);
+            animation: lbYouPulse 1.2s ease-in-out 3;
+        }
+
+        @keyframes lbYouPulse {
+            0%, 100% { box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5), 0 0 20px rgba(56, 189, 248, 0.4); }
+            50%      { box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2), 0 0 6px  rgba(56, 189, 248, 0.15); }
+        }
+
         .lb-left {
             display: flex;
             align-items: center;
@@ -1083,22 +1104,9 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // =========================================================
-        // CORS-SAFE MULTI-DEVICE LIVE CLOUD LEADERBOARD
-        // Uses CORS-friendly endpoints with simple 'text/plain' POSTs
-        // (avoids browser preflight OPTIONS rejection on GitHub Pages)
-        // plus automatic read/merge/write across all phones & computers.
-        // =========================================================
-        const CLOUD_SYNC_CONFIG = {
-            // Primary: Pantry / KVDB simple CORS-enabled key-value storage
-            endpoints: [
-                'https://kvdb.io/8vQ4xP9mR2wK7nL3zY6cT1/tdgames_astrododge_v2_top50_live',
-                'https://kvdb.io/4mN9pL2vX7qR5wK8zJ3tB6/tdgames_astrododge_v2_top50_backup'
-            ],
-            // Optional: Paste a Firebase Realtime Database URL (e.g. https://your-app-default-rtdb.firebaseio.com/top50.json)
-            // for dedicated private database persistence if desired:
-            customDatabaseUrl: ''
-        };
+        // The leaderboard settings and engine live further down, just under the
+        // UI element list, because they need those elements to exist first.
+        // Look for "ONE BOARD, EVERY COMPUTER".
 
         // UI Elements
         const scoreBox = document.getElementById('scoreBox');
@@ -1140,12 +1148,78 @@
         const entryErrorMsg = document.getElementById('entryErrorMsg');
         const submitScoreBtn = document.getElementById('submitScoreBtn');
 
+        // ===================================================================
+        //  ONE BOARD, EVERY COMPUTER
+        //
+        //  This used to point at two kvdb.io addresses whose bucket ids were
+        //  never real. Checked 20 Nov 2026: both answer 404 "bucket not found",
+        //  and a kvdb id is issued when you create the bucket - writing to an
+        //  invented one does not bring it into existence. So no computer ever
+        //  read or wrote a single score, every browser fell back to its own
+        //  localStorage, and nothing on screen said so because the failure was
+        //  caught and thrown away. That is why a score saved here never showed
+        //  up there.
+        //
+        //  The second fault was worse in the long run: the old code read the
+        //  WHOLE 50-entry board, added a name, and wrote the WHOLE board back.
+        //  Two people finishing within a few seconds of each other both read
+        //  the same board, both added themselves, and whoever wrote second
+        //  deleted the first one's score. So this version POSTs ONE entry and
+        //  never rewrites the board. Two scores arriving at the same moment
+        //  cannot touch each other.
+        //
+        //  Nothing in here runs while the rocket is flying. Reads happen on the
+        //  menu, on opening the board, and on game over. One request at a time,
+        //  every request has a deadline, and the board on screen is always
+        //  drawn from this computer's copy first - so there is never anything
+        //  to wait behind and no frame to drop.
+        // ===================================================================
+        const CLOUD = {
+            // The Realtime Database this game's scores live in.
+            // Empty it and the game still works perfectly - the board is just
+            // this computer's own scores, and it says so on screen instead of
+            // claiming to be live.
+            dbUrl: 'https://rocket-dodger-default-rtdb.firebaseio.com',
+
+            path: 'scores',       // where the scores live inside the database
+            top: 50,              // how many rows the board shows
+            readTimeout: 5000,    // give up on a read after 5s, use the cache
+            writeTimeout: 8000,   // give up on saving after 8s
+            minGapMs: 8000,       // never ask the database twice inside 8s
+            refreshEveryMs: 30000 // quiet background refresh while on a menu
+        };
+
         // Isolated 2.0 Storage Keys (Fresh save profile separate from original v1.0)
         const STORAGE_KEYS = {
             bestScore: 'astroDodge_v2_bestScore',
             equippedSkin: 'astroDodge_v2_equippedRocketSkin',
-            leaderboard: 'astroDodge_v2_top50Leaderboard'
+            leaderboard: 'astroDodge_v2_top50Leaderboard',
+            seeded: 'astroDodge_v2_seedPushed'
         };
+
+        // localStorage THROWS rather than returning null when a browser is set
+        // to block storage and the page is inside an iframe - which is how a
+        // game portal runs it. A leaderboard must never be the reason the game
+        // refuses to start, so every read and write goes through here.
+        const safeStore = {
+            _mem: {},
+            get(key) {
+                try { return localStorage.getItem(key); } catch (e) { return this._mem[key] || null; }
+            },
+            set(key, value) {
+                try { localStorage.setItem(key, value); } catch (e) { this._mem[key] = value; }
+            }
+        };
+
+        // Highest score first. Equal scores are settled by who got there first,
+        // so a new entry can never push an older identical score down a place.
+        function sortEntries(list) {
+            return list.sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                if (a.at !== b.at) return a.at - b.at;
+                return String(a.id).localeCompare(String(b.id));
+            });
+        }
 
         // Pre-populated Initial Leaderboard Scores (Sorted Highest to Lowest, Max 50)
         const INITIAL_LEADERBOARD = [
@@ -1178,13 +1252,13 @@
                 const lastName = String(item.lastName || '').trim().slice(0, 10);
                 const score = Math.floor(Number(item.score) || 0);
                 if (!firstName || score <= 0) continue;
+                const at = Number(item.at) || 1;
                 const id = item.id || `${firstName}_${lastName}_${score}`;
                 if (seenIds.has(id)) continue;
                 seenIds.add(id);
-                cleaned.push({ id, firstName, lastName, score });
+                cleaned.push({ id, firstName, lastName, score, at });
             }
-            cleaned.sort((a, b) => b.score - a.score);
-            return cleaned.slice(0, 50);
+            return sortEntries(cleaned).slice(0, CLOUD.top);
         }
 
         function mergeLeaderboards(localList, remoteList) {
@@ -1192,27 +1266,28 @@
             return normalizeEntryList(combined);
         }
 
-        // Load Local Cache of Top 50 Leaderboard
+        // The copy kept on this computer. It is what the board is drawn from,
+        // so the board is on screen instantly - offline, on a dead connection,
+        // and before the database has answered.
         function loadLocalLeaderboard() {
-            const raw = localStorage.getItem(STORAGE_KEYS.leaderboard);
-            if (!raw) {
-                const seeded = normalizeEntryList(INITIAL_LEADERBOARD);
-                localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(seeded));
-                return seeded;
+            const raw = safeStore.get(STORAGE_KEYS.leaderboard);
+            if (raw) {
+                try {
+                    const normalized = normalizeEntryList(JSON.parse(raw));
+                    if (normalized.length > 0) return normalized;
+                } catch (e) {}
             }
-            try {
-                const parsed = JSON.parse(raw);
-                const normalized = normalizeEntryList(parsed);
-                if (normalized.length > 0) return normalized;
-            } catch (e) {}
-            return normalizeEntryList(INITIAL_LEADERBOARD);
+            const seeded = normalizeEntryList(INITIAL_LEADERBOARD);
+            safeStore.set(STORAGE_KEYS.leaderboard, JSON.stringify(seeded));
+            return seeded;
         }
 
         let leaderboardData = loadLocalLeaderboard();
+        let justSavedId = null;   // the row to light up after saving
 
         function saveLocalLeaderboard(entries) {
             leaderboardData = normalizeEntryList(entries);
-            localStorage.setItem(STORAGE_KEYS.leaderboard, JSON.stringify(leaderboardData));
+            safeStore.set(STORAGE_KEYS.leaderboard, JSON.stringify(leaderboardData));
             updateTopSiteRecordHUD();
         }
 
@@ -1231,18 +1306,26 @@
         updateTopSiteRecordHUD();
 
         // =========================================================
-        // CORS-SAFE CLOUD SYNC HELPERS (Zero Preflight Block)
+        // TALKING TO THE DATABASE
         // =========================================================
-        function getAllSyncUrls() {
-            const urls = [];
-            if (CLOUD_SYNC_CONFIG.customDatabaseUrl && CLOUD_SYNC_CONFIG.customDatabaseUrl.trim()) {
-                urls.push(CLOUD_SYNC_CONFIG.customDatabaseUrl.trim());
-            }
-            urls.push(...CLOUD_SYNC_CONFIG.endpoints);
-            return urls;
+        function cloudIsOn() {
+            return !!(CLOUD.dbUrl && CLOUD.dbUrl.trim());
         }
 
-        async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
+        function dbBase() {
+            return CLOUD.dbUrl.trim().replace(/\/+$/, '');
+        }
+
+        function setSyncStatus(text, live) {
+            if (!lbSyncStatus) return;
+            lbSyncStatus.textContent = text;
+            lbSyncStatus.classList.toggle('live', !!live);
+        }
+
+        // Every request gets a deadline. A request with no deadline is one that
+        // can hang for a minute on a bad phone connection with nothing on
+        // screen to say why.
+        async function fetchWithTimeout(url, options = {}, timeoutMs = CLOUD.readTimeout) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
@@ -1256,103 +1339,126 @@
             }
         }
 
-        async function fetchGlobalLeaderboard() {
-            lbSyncStatus.textContent = 'Syncing Global Scores...';
-            lbSyncStatus.classList.remove('live');
+        let inFlightRead = null;   // one read at a time, shared by every caller
+        let lastReadAt = 0;
 
-            const urls = getAllSyncUrls();
-            let syncedFromCloud = false;
-            let combinedRemote = [];
-
-            for (const baseUrl of urls) {
-                try {
-                    const sep = baseUrl.includes('?') ? '&' : '?';
-                    const res = await fetchWithTimeout(`${baseUrl}${sep}t=${Date.now()}`, {
-                        method: 'GET'
-                    });
-                    if (res.ok) {
-                        const text = await res.text();
-                        if (text && text.trim()) {
-                            const data = JSON.parse(text);
-                            const list = Array.isArray(data) ? data : (data && data.entries);
-                            if (Array.isArray(list) && list.length > 0) {
-                                combinedRemote = mergeLeaderboards(combinedRemote, list);
-                                syncedFromCloud = true;
-                            }
-                        }
-                    } else if (res.status === 404) {
-                        // Seed this endpoint with initial data on first visit
-                        await pushToSingleEndpoint(baseUrl, leaderboardData);
-                        syncedFromCloud = true;
-                    }
-                } catch (err) {
-                    // Try next endpoint
-                }
-            }
-
-            if (syncedFromCloud && combinedRemote.length > 0) {
-                const merged = mergeLeaderboards(leaderboardData, combinedRemote);
-                const hadLocalOnlyScores = merged.length > combinedRemote.length ||
-                    merged.some((item, idx) => !combinedRemote[idx] || item.id !== combinedRemote[idx].id);
-
-                saveLocalLeaderboard(merged);
-
-                // If this device had any unsynced scores, push merged board back to all endpoints
-                if (hadLocalOnlyScores) {
-                    await pushGlobalLeaderboard(merged);
-                }
-
-                lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                lbSyncStatus.classList.add('live');
+        // Reads the top scores. Returns the board either way: on any failure it
+        // hands back what is already on this computer, so no caller has to care.
+        //
+        // orderBy + limitToLast needs ".indexOn": "score" in the database rules
+        // or the database answers 400 and the board silently never updates.
+        // Filtered results come back in no guaranteed order, which is why
+        // sortEntries runs over them here rather than trusting the response.
+        async function fetchGlobalLeaderboard(force = false) {
+            if (!cloudIsOn()) {
+                setSyncStatus('Local scores only - no database connected', false);
                 return leaderboardData;
             }
+            if (inFlightRead) return inFlightRead;
+            if (!force && Date.now() - lastReadAt < CLOUD.minGapMs) return leaderboardData;
 
-            lbSyncStatus.textContent = 'Cached Standings • Will Retry Sync';
-            lbSyncStatus.classList.remove('live');
-            return leaderboardData;
-        }
+            setSyncStatus('Syncing global scores...', false);
 
-        async function pushToSingleEndpoint(baseUrl, normalizedEntries) {
-            const payload = JSON.stringify({
-                updatedAt: Date.now(),
-                entries: normalizedEntries
-            });
-
-            // Use Firebase RTDB PUT if custom Firebase URL is configured, otherwise simple CORS POST
-            const isFirebaseRtdb = baseUrl.includes('firebaseio.com') || baseUrl.includes('firebasedatabase.app');
-            const method = isFirebaseRtdb ? 'PUT' : 'POST';
-
-            // Using 'text/plain;charset=UTF-8' prevents browser CORS preflight OPTIONS blocks
-            // while still sending valid JSON text in the request body!
-            const res = await fetchWithTimeout(baseUrl, {
-                method,
-                headers: {
-                    'Content-Type': 'text/plain;charset=UTF-8'
-                },
-                body: payload
-            });
-            return res.ok;
-        }
-
-        async function pushGlobalLeaderboard(entries) {
-            const normalized = normalizeEntryList(entries);
-            saveLocalLeaderboard(normalized);
-
-            const urls = getAllSyncUrls();
-            let anySuccess = false;
-
-            await Promise.all(urls.map(async (baseUrl) => {
+            inFlightRead = (async () => {
                 try {
-                    const ok = await pushToSingleEndpoint(baseUrl, normalized);
-                    if (ok) anySuccess = true;
+                    const url = `${dbBase()}/${CLOUD.path}.json`
+                              + `?orderBy=%22score%22&limitToLast=${CLOUD.top}`;
+                    const res = await fetchWithTimeout(url, { method: 'GET' }, CLOUD.readTimeout);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                    const data = await res.json();
+                    const remote = [];
+                    if (data && typeof data === 'object') {
+                        for (const key of Object.keys(data)) {
+                            const row = data[key];
+                            if (row && typeof row === 'object') remote.push({ ...row, id: key });
+                        }
+                    }
+
+                    lastReadAt = Date.now();
+
+                    if (remote.length === 0) {
+                        // An empty database on a connection that worked. Put the
+                        // starting scores in, each under its own fixed name so a
+                        // second computer doing the same cannot double them.
+                        await seedDatabaseOnce();
+                        setSyncStatus('Live global leaderboard - synced', true);
+                        return leaderboardData;
+                    }
+
+                    // The database is the truth and the local copy is only a
+                    // cache, so it is replaced rather than merged - otherwise a
+                    // score deleted from the database comes straight back from
+                    // every computer that still has it saved.
+                    saveLocalLeaderboard(remote);
+                    setSyncStatus('Live global leaderboard - synced', true);
+                    return leaderboardData;
+                } catch (err) {
+                    setSyncStatus('Offline - showing last known scores', false);
+                    return leaderboardData;
+                } finally {
+                    inFlightRead = null;
+                }
+            })();
+
+            return inFlightRead;
+        }
+
+        // Saves ONE score. Does not touch anybody else's row, so two people
+        // finishing at the same moment both keep their score.
+        // Returns the id the database gave it, or null if it did not get through.
+        async function saveScoreToCloud(entry) {
+            if (!cloudIsOn()) return null;
+            try {
+                const res = await fetchWithTimeout(
+                    `${dbBase()}/${CLOUD.path}.json`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(entry)
+                    },
+                    CLOUD.writeTimeout
+                );
+                if (!res.ok) return null;
+                const out = await res.json();   // { "name": "-OabC123..." }
+                return (out && out.name) ? out.name : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // PUT to a fixed name, so running this twice writes the same row twice
+        // rather than making a second one. The rules only allow a write where
+        // nothing exists yet, so the second attempt is refused, which is fine.
+        async function seedDatabaseOnce() {
+            if (!cloudIsOn()) return;
+            if (safeStore.get(STORAGE_KEYS.seeded) === 'yes') return;
+            safeStore.set(STORAGE_KEYS.seeded, 'yes');
+            await Promise.all(INITIAL_LEADERBOARD.map(async (s) => {
+                try {
+                    await fetchWithTimeout(
+                        `${dbBase()}/${CLOUD.path}/${s.id}.json`,
+                        {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                firstName: s.firstName,
+                                lastName: s.lastName || '',
+                                score: s.score,
+                                at: 1
+                            })
+                        },
+                        CLOUD.writeTimeout
+                    );
                 } catch (e) {}
             }));
+        }
 
-            if (anySuccess) {
-                lbSyncStatus.textContent = 'Live Global Leaderboard • Synced';
-                lbSyncStatus.classList.add('live');
-            }
-            return anySuccess;
+        // Kept so any other call in this file still works. It no longer
+        // rewrites the board - that was the bug - it just refreshes.
+        async function pushGlobalLeaderboard() {
+            await fetchGlobalLeaderboard(true);
+            return cloudIsOn();
         }
 
         // Check if a run's score qualifies for Top 50
@@ -1492,24 +1598,38 @@
             isSubmittingScore = true;
             submitScoreBtn.disabled = true;
             entryErrorMsg.style.color = '#38bdf8';
-            entryErrorMsg.textContent = 'Publishing score to all devices...';
+            entryErrorMsg.textContent = cloudIsOn()
+                ? 'Saving to the website...'
+                : 'Saving on this computer...';
 
-            // 1. Pull latest global scores first so concurrent devices never overwrite each other
-            await fetchGlobalLeaderboard();
+            const entry = {
+                firstName: fName,
+                lastName: lName,
+                score: pendingLeaderboardScore,
+                at: Date.now()
+            };
 
-            // 2. Append unique entry and push merged Top 50 list to the cloud
-            const uniqueId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-            const updatedEntries = [
-                ...leaderboardData,
-                {
-                    id: uniqueId,
-                    firstName: fName,
-                    lastName: lName,
-                    score: pendingLeaderboardScore
-                }
-            ];
+            // Show it on this computer first, whatever the network does, so the
+            // board is never blank while a request is in the air.
+            const localId = `run_${entry.at}_${Math.random().toString(36).slice(2, 7)}`;
+            saveLocalLeaderboard([...leaderboardData, { ...entry, id: localId }]);
+            justSavedId = localId;
 
-            await pushGlobalLeaderboard(updatedEntries);
+            // One score, posted on its own. Nobody else's row is touched, so a
+            // second player saving at the same moment cannot delete this one.
+            const savedId = await saveScoreToCloud(entry);
+
+            if (savedId) {
+                // Read it straight back out, so what is on screen is what the
+                // database really holds. That is the whole point of being able
+                // to look at it and know it is there.
+                justSavedId = savedId;
+                await fetchGlobalLeaderboard(true);
+                justSavedId = savedId;
+                setSyncStatus('Saved - every computer can see this score', true);
+            } else if (cloudIsOn()) {
+                setSyncStatus('Could not reach the website - saved on this computer only', false);
+            }
 
             isSubmittingScore = false;
             submitScoreBtn.disabled = false;
@@ -1519,6 +1639,12 @@
             nameEntryOverlay.classList.remove('active');
             renderLeaderboard();
             leaderboardOverlay.classList.add('active');
+
+            // Stop lighting the row up after a few seconds.
+            setTimeout(() => {
+                justSavedId = null;
+                if (leaderboardOverlay.classList.contains('active')) renderLeaderboard();
+            }, 6000);
         }
 
         submitScoreBtn.addEventListener('click', submitLeaderboardEntry);
@@ -1562,13 +1688,14 @@
             leaderboardData.forEach((entry, index) => {
                 const rankNum = index + 1;
                 const rankClass = rankNum <= 3 ? `rank-${rankNum}` : '';
+                const youClass = (justSavedId && entry.id === justSavedId) ? 'lb-you' : '';
                 const rankLabel = formatOrdinalRank(rankNum);
                 const fullName = entry.lastName
                     ? `${escapeHTML(entry.firstName)} ${escapeHTML(entry.lastName)}`
                     : escapeHTML(entry.firstName);
 
                 html += `
-                    <div class="lb-row ${rankClass}">
+                    <div class="lb-row ${rankClass} ${youClass}">
                         <div class="lb-left">
                             <span class="lb-rank">${rankLabel}</span>
                             <span class="lb-name">${fullName}</span>
@@ -1598,34 +1725,36 @@
             }
         });
 
-        // Automatic silent background refresh whenever tab regains focus so all devices stay up to date
+        // Quiet background refresh. Never while flying, never while the tab is
+        // hidden, never twice inside CLOUD.minGapMs. The old pair of these
+        // asked every 15 seconds for ever, in every open tab, and again on
+        // every tab switch, with no limit and no check on whether a request
+        // was already running - a leaderboard is not worth one dropped frame.
+        function refreshBoardIfIdle() {
+            if (typeof gameState !== 'undefined' && gameState === 'PLAYING') return;
+            if (document.visibilityState !== 'visible') return;
+            if (isSubmittingScore) return;
+            fetchGlobalLeaderboard().then(() => {
+                if (leaderboardOverlay.classList.contains('active')) renderLeaderboard();
+            });
+        }
+
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') {
-                fetchGlobalLeaderboard().then(() => {
-                    if (leaderboardOverlay.classList.contains('active')) {
-                        renderLeaderboard();
-                    }
-                });
-            }
+            if (document.visibilityState === 'visible') refreshBoardIfIdle();
         });
 
-        // Periodic silent background sync every 15 seconds when not actively flying
-        setInterval(() => {
-            if (gameState !== 'PLAYING' && !isSubmittingScore) {
-                fetchGlobalLeaderboard().then(() => {
-                    if (leaderboardOverlay.classList.contains('active')) {
-                        renderLeaderboard();
-                    }
-                });
-            }
-        }, 15000);
+        setInterval(refreshBoardIfIdle, CLOUD.refreshEveryMs);
 
         // Game State: START, PLAYING, PAUSED, COUNTDOWN, GAMEOVER
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
         let gameState = 'START';
         let score = 0;
-        let bestScore = parseInt(localStorage.getItem(STORAGE_KEYS.bestScore) || '0', 10);
+        // safeStore, not localStorage: this line runs at the top level, and in
+        // a browser set to block storage inside a game portal's iframe a bare
+        // localStorage read THROWS rather than returning null - which would
+        // stop the whole script here and leave a black rectangle.
+        let bestScore = parseInt(safeStore.get(STORAGE_KEYS.bestScore) || '0', 10);
         bestDisplay.textContent = bestScore;
 
         // Rocket Hull Skins Definition
@@ -1793,7 +1922,7 @@
             { x: 0.12,  y: 0.30,  rx: 0.26, ry: 0.15, rot: -0.3, color: 'rgba(12, 26, 17, 0.85)' }
         ];
 
-        let equippedRocketSkinId = localStorage.getItem(STORAGE_KEYS.equippedSkin) || 'classic';
+        let equippedRocketSkinId = safeStore.get(STORAGE_KEYS.equippedSkin) || 'classic';
         let activeCosmeticTab = 'rocket';
 
         function getEquippedRocketSkin() {
@@ -1843,7 +1972,7 @@
                     card.addEventListener('click', () => {
                         const id = card.getAttribute('data-skin-id');
                         equippedRocketSkinId = id;
-                        localStorage.setItem(STORAGE_KEYS.equippedSkin, id);
+                        safeStore.set(STORAGE_KEYS.equippedSkin, id);
                         renderCosmeticsPanel();
                     });
                 });
@@ -2228,29 +2357,44 @@
 
             if (score > bestScore) {
                 bestScore = score;
-                localStorage.setItem(STORAGE_KEYS.bestScore, bestScore);
+                safeStore.set(STORAGE_KEYS.bestScore, bestScore);
                 bestDisplay.textContent = bestScore;
             }
 
-            // Silently refresh the latest global leaderboard right when the player dies
-            // so the Top #1 HUD & qualification check are completely fresh without visible page reload
-            const syncPromise = fetchGlobalLeaderboard();
+            const runScore = score;
+
+            // Ask the database for the real board, but do NOT wait on it before
+            // putting the Game Over screen up. The old code awaited this first,
+            // which on a slow connection is the screen sitting there for up to
+            // four and a half seconds after you explode - and that reads as the
+            // game having frozen. Whichever finishes first, the answer or 2.5
+            // seconds, decides whether the name box opens.
+            const syncDone = cloudIsOn()
+                ? Promise.race([
+                      fetchGlobalLeaderboard(true),
+                      new Promise((resolve) => setTimeout(resolve, 2500))
+                  ])
+                : Promise.resolve();
 
             setTimeout(async () => {
-                await syncPromise;
-                const madeTop50 = qualifiesForTop50(score);
-
                 menuBadge.style.display = 'none';
                 overlayTitle.textContent = 'Hull Breached!';
                 overlayDesc.innerHTML = 'Watch out for incoming asteroid fields.<br>Hold left or right to bank, release to fly straight.';
                 finalScoreBox.style.display = 'block';
-                finalScoreVal.textContent = score;
+                finalScoreVal.textContent = runScore;
                 startBtn.textContent = 'Play Again';
                 startBtn.classList.remove('play-hero');
                 overlay.classList.remove('hidden');
 
-                if (madeTop50) {
-                    openNameEntryModal(score);
+                // Screen is up and on time. Now the database can have its say.
+                await syncDone;
+
+                // They may have hit Play Again while that was in the air - do
+                // not throw a name box over a run already in progress.
+                if (gameState !== 'GAMEOVER') return;
+
+                if (qualifiesForTop50(runScore)) {
+                    openNameEntryModal(runScore);
                 }
             }, 650);
         }
@@ -2784,8 +2928,13 @@
 
         // Boot Game & Sync Live Leaderboard Across All Devices
         initStars();
-        fetchGlobalLeaderboard();
         requestAnimationFrame(gameLoop);
+
+        // The board is already on screen from this computer's saved copy, so
+        // the first read can wait until the game is drawing. Starting it in the
+        // same tick as the first frame is how a menu ends up stuttering on a
+        // slow phone for no reason anyone can see.
+        setTimeout(() => fetchGlobalLeaderboard(true), 800);
     </script>
 </body>
 </html>
